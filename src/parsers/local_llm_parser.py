@@ -1,3 +1,5 @@
+# src/parsers/local_llm_parser.py
+
 import logging
 import json
 import re
@@ -9,6 +11,7 @@ from src.parsers.base_parser import BaseParser
 from dotenv import load_dotenv
 import jsonschema
 from jsonschema import validate
+import validators  # New dependency for URL validation
 
 # Load environment variables from .env
 load_dotenv()
@@ -172,7 +175,7 @@ class LocalLLMParser(BaseParser):
         self.logger.info("Parsing email content with LocalLLMParser.")
         prompt = (
             "You are an assistant specialized in extracting information from insurance claim emails. "
-            "Please extract the following information from the email content and provide it in **pure JSON format** without any markdown, code blocks, or additional text. "
+            "Please extract the following information from the email content and provide it in pure JSON format without any markdown, code blocks, or additional text. "
             "Ensure that the JSON strictly follows the given schema. Do not include any explanations or comments.\n\n"
             "Assignment Schema:\n"
             "{\n"
@@ -228,7 +231,6 @@ class LocalLLMParser(BaseParser):
             response = self.generate(prompt)
             self.logger.debug(f"Raw LLM response: {response}")
 
-
             # Clean the response by removing any code blocks or markdown
             cleaned_response = self._clean_response(response)
             self.logger.debug(f"Cleaned LLM response: {cleaned_response}")
@@ -268,10 +270,10 @@ class LocalLLMParser(BaseParser):
         """
         payload = {
             "prompt": prompt,
-            "max_tokens": 131072,  # Adjusted from 500000 to 1500
+            "max_tokens": 1500,  # Adjusted from 131072 to 1500 for practical limits
             "temperature": 0.2,  # Lower temperature for deterministic output
             "n": 1,  # Number of completions to generate
-            "stop": ["}"],  # Stop after the closin`g brace
+            "stop": ["}"],  # Stop after the closing brace
         }
 
         retries = 3
@@ -322,32 +324,32 @@ class LocalLLMParser(BaseParser):
                 )
                 raise ValueError("Invalid JSON response from LLM API.") from e
 
-def _clean_response(self, response: str) -> str:
-    """
-    Cleans the LLM response by removing markdown code blocks and any extraneous text.
+    def _clean_response(self, response: str) -> str:
+        """
+        Cleans the LLM response by removing markdown code blocks and any extraneous text.
 
-    Args:
-        response (str): The raw response from the LLM.
+        Args:
+            response (str): The raw response from the LLM.
 
-    Returns:
-        str: Cleaned JSON string.
-    """
-    # Remove markdown code blocks if present
-    response = re.sub(r'```(?:json)?\s*', '', response)
-    # Remove any trailing or leading whitespace
-    response = response.strip()
-    
-    # Extract the JSON part using regex
-    json_match = re.search(r'\{.*\}', response, re.DOTALL)
-    if json_match:
-        response = json_match.group(0)
-    else:
-        self.logger.warning("No JSON object found in the LLM response.")
-        # Optionally, raise an error or handle it accordingly
-        raise ValueError("No JSON object found in the LLM response.")
-    
-    # Ensure that the JSON string ends properly
-    if not response.endswith('}'):
-        response += '}'
-    
-    return response
+        Returns:
+            str: Cleaned JSON string.
+        """
+        # Remove markdown code blocks if present
+        response = re.sub(r'```(?:json)?\s*', '', response)
+        # Remove any trailing or leading whitespace
+        response = response.strip()
+
+        # Extract the JSON part using regex
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            response = json_match.group(0)
+        else:
+            self.logger.warning("No JSON object found in the LLM response.")
+            # Optionally, raise an error or handle it accordingly
+            raise ValueError("No JSON object found in the LLM response.")
+
+        # Ensure that the JSON string ends properly
+        if not response.endswith('}'):
+            response += '}'
+
+        return response

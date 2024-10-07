@@ -1,21 +1,14 @@
-# src/parsers/rule_based_parser.py
-
 import logging
 import re
 import spacy
 from src.parsers.base_parser import BaseParser
-from src.parsers.local_llm_parser import (
-    validate_json,
-)  # Assuming validate_json is accessible
-import jsonschema
-from jsonschema import validate
-from datetime import datetime
 import yaml
 import os
+from datetime import datetime
 
 
 class RuleBasedParser(BaseParser):
-    """An improved and enhanced rule-based parser for comprehensive email parsing."""
+    """rule-based parser for comprehensive email parsing."""
 
     def __init__(self, config_path: str = None):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -124,7 +117,7 @@ class RuleBasedParser(BaseParser):
                     "Contact #": r"Contact #\s*:\s*(.*)",
                     "Loss Address": r"Loss Address\s*:\s*(.*)",
                     "Public Adjuster": r"Public Adjuster\s*:\s*(.*)",
-                    "Owner or Tenant": r"Is the insured an Owner or a Tenant of the loss location\?\s*(Yes|No|Owner|Tenant)",
+                    "Owner or Tenant": r"Is the insured an Owner or a Tenant of the loss location\?\s*(.*)",
                 },
                 "Adjuster Information": {
                     "Adjuster Name": r"Adjuster Name\s*:\s*(.*)",
@@ -139,8 +132,8 @@ class RuleBasedParser(BaseParser):
                     "Cause of loss": r"Cause of loss\s*:\s*(.*)",
                     "Facts of Loss": r"Facts of Loss\s*:\s*(.*)",
                     "Loss Description": r"Loss Description\s*:\s*(.*)",
-                    "Residence Occupied During Loss": r"Residence Occupied During Loss\s*:\s*(Yes|No)",
-                    "Was Someone home at time of damage": r"Was Someone home at time of damage\s*:\s*(Yes|No)",
+                    "Residence Occupied During Loss": r"Residence Occupied During Loss\s*:\s*(.*)",
+                    "Was Someone home at time of damage": r"Was Someone home at time of damage\s*:\s*(.*)",
                     "Repair or Mitigation Progress": r"Repair or Mitigation Progress\s*:\s*(.*)",
                     "Type": r"Type\s*:\s*(.*)",
                     "Inspection type": r"Inspection type\s*:\s*(.*)",
@@ -223,7 +216,7 @@ class RuleBasedParser(BaseParser):
             dict: Parsed data as a dictionary.
         """
         self.logger.info("Parsing email content with RuleBasedParser.")
-        extracted_data = {}
+        extracted_data = self.initialize_default_structure()
 
         # Extract sections based on the assignment schema
         sections = self.split_into_sections(email_content)
@@ -234,28 +227,77 @@ class RuleBasedParser(BaseParser):
             if extract_method:
                 try:
                     data = extract_method(content)
-                    extracted_data.update(data)
+                    self.update_extracted_data(extracted_data, data)
                 except Exception as e:
-                    self.logger.error(f"Error extracting section '{section}': {e}")
-                    extracted_data.update(self.default_section_data(section))
+                    self.logger.warning(f"Error extracting section '{section}': {e}")
             else:
                 self.logger.warning(
                     f"No extraction method found for section: {section}"
                 )
 
         # Extract entities using NLP
-        entities = self.extract_entities(email_content)
-        extracted_data["Entities"] = entities
-
-        # Validate the extracted data against the JSON schema
-        is_valid, error_message = validate_json(extracted_data)
-        if not is_valid:
-            self.logger.error(f"JSON Schema Validation Error: {error_message}")
-            raise ValueError(f"JSON Schema Validation Error: {error_message}")
+        try:
+            entities = self.extract_entities(email_content)
+            extracted_data["Entities"] = entities
+        except Exception as e:
+            self.logger.warning(f"Error extracting entities: {e}")
+            extracted_data["Entities"] = {}
 
         self.logger.debug(f"Extracted Data: {extracted_data}")
-        self.logger.info("Successfully parsed email with RuleBasedParser.")
+        self.logger.info("Completed parsing email with RuleBasedParser.")
         return extracted_data
+
+    def initialize_default_structure(self):
+        return {
+            "Requesting Party": {
+                "Insurance Company": "N/A",
+                "Handler": "N/A",
+                "Carrier Claim Number": "N/A",
+            },
+            "Insured Information": {
+                "Name": "N/A",
+                "Contact #": "N/A",
+                "Loss Address": "N/A",
+                "Public Adjuster": "N/A",
+                "Owner or Tenant": "N/A",
+            },
+            "Adjuster Information": {
+                "Adjuster Name": "N/A",
+                "Adjuster Phone Number": "N/A",
+                "Adjuster Email": "N/A",
+                "Job Title": "N/A",
+                "Address": "N/A",
+                "Policy #": "N/A",
+            },
+            "Assignment Information": {
+                "Date of Loss/Occurrence": "N/A",
+                "Cause of loss": "N/A",
+                "Facts of Loss": "N/A",
+                "Loss Description": "N/A",
+                "Residence Occupied During Loss": "N/A",
+                "Was Someone home at time of damage": "N/A",
+                "Repair or Mitigation Progress": "N/A",
+                "Type": "N/A",
+                "Inspection type": "N/A",
+            },
+            "Assignment Type": {
+                "Wind": False,
+                "Structural": False,
+                "Hail": False,
+                "Foundation": False,
+                "Other": {"Checked": False, "Details": "N/A"},
+            },
+            "Additional details/Special Instructions": "N/A",
+            "Attachment(s)": ["N/A"],
+            "Entities": {},
+        }
+
+    def update_extracted_data(self, extracted_data, new_data):
+        for key, value in new_data.items():
+            if isinstance(value, dict):
+                extracted_data[key].update(value)
+            else:
+                extracted_data[key] = value
 
     def snake_case(self, text: str) -> str:
         """Converts text to snake_case by removing non-word characters and replacing spaces with underscores."""
@@ -275,7 +317,7 @@ class RuleBasedParser(BaseParser):
             dict: Sections of the email mapped to their content.
         """
         self.logger.debug("Splitting email content into sections.")
-        sections = {}
+        sections = {header: "" for header in self.section_headers}
         current_section = None
         content_buffer = []
 
@@ -288,86 +330,19 @@ class RuleBasedParser(BaseParser):
             header_match = self.section_pattern.match(line)
             if header_match:
                 if current_section:
-                    sections[current_section] = "\n".join(content_buffer).strip()
+                    sections[current_section] += "\n".join(content_buffer)
                     content_buffer = []
                 current_section = header_match.group(1)
-                sections[current_section] = ""
                 self.logger.debug(f"Detected section header: {current_section}")
             elif current_section:
                 content_buffer.append(line)
 
         # Add the last section
         if current_section and content_buffer:
-            sections[current_section] = "\n".join(content_buffer).strip()
-
-        # Handle additional patterns for missing sections
-        for section in self.section_headers:
-            if section not in sections:
-                self.logger.warning(f"Section '{section}' not found in email content.")
-                sections[section] = ""
+            sections[current_section] += "\n".join(content_buffer)
 
         self.logger.debug(f"Sections Found: {list(sections.keys())}")
         return sections
-
-    def default_section_data(self, section: str) -> dict:
-        """
-        Provides default data structure for missing sections.
-
-        Args:
-            section (str): The name of the section.
-
-        Returns:
-            dict: Default data for the section.
-        """
-        default_data = {}
-        if section == "Requesting Party":
-            default_data["Requesting Party"] = {
-                "Insurance Company": "N/A",
-                "Handler": "N/A",
-                "Carrier Claim Number": "N/A",
-            }
-        elif section == "Insured Information":
-            default_data["Insured Information"] = {
-                "Name": "N/A",
-                "Contact #": "N/A",
-                "Loss Address": "N/A",
-                "Public Adjuster": "N/A",
-                "Owner or Tenant": "N/A",
-            }
-        elif section == "Adjuster Information":
-            default_data["Adjuster Information"] = {
-                "Adjuster Name": "N/A",
-                "Adjuster Phone Number": "N/A",
-                "Adjuster Email": "N/A",
-                "Job Title": "N/A",
-                "Address": "N/A",
-                "Policy #": "N/A",
-            }
-        elif section == "Assignment Information":
-            default_data["Assignment Information"] = {
-                "Date of Loss/Occurrence": "N/A",
-                "Cause of loss": "N/A",
-                "Facts of Loss": "N/A",
-                "Loss Description": "N/A",
-                "Residence Occupied During Loss": "N/A",
-                "Was Someone home at time of damage": "N/A",
-                "Repair or Mitigation Progress": "N/A",
-                "Type": "N/A",
-                "Inspection type": "N/A",
-            }
-        elif section == "Assignment Type":
-            default_data["Assignment Type"] = {
-                "Wind": False,
-                "Structural": False,
-                "Hail": False,
-                "Foundation": False,
-                "Other": {"Checked": False, "Details": "N/A"},
-            }
-        elif section == "Additional details/Special Instructions":
-            default_data["Additional details/Special Instructions"] = "N/A"
-        elif section == "Attachment(s)":
-            default_data["Attachment(s)"] = "N/A"
-        return default_data
 
     def extract_requesting_party(self, text: str):
         """
@@ -380,36 +355,19 @@ class RuleBasedParser(BaseParser):
             dict: Extracted 'Requesting Party' data.
         """
         self.logger.debug("Extracting Requesting Party information.")
-        data = {}
+        data = {
+            "Insurance Company": "N/A",
+            "Handler": "N/A",
+            "Carrier Claim Number": "N/A",
+        }
         for key, pattern in self.patterns["Requesting Party"].items():
             match = pattern.search(text)
             if match:
                 value = match.group(1).strip()
-                # Handle alternative patterns
-                if not value and key in self.additional_patterns.get(
-                    "Requesting Party", {}
-                ):
-                    alt_pattern = self.additional_patterns["Requesting Party"][key]
-                    alt_match = alt_pattern.search(text)
-                    value = alt_match.group(1).strip() if alt_match else "N/A"
                 data[key] = value if value else "N/A"
                 self.logger.debug(f"Found {key}: {value}")
             else:
-                # Attempt to find using additional patterns if applicable
-                if key in self.additional_patterns.get("Requesting Party", {}):
-                    alt_pattern = self.additional_patterns["Requesting Party"][key]
-                    alt_match = alt_pattern.search(text)
-                    value = alt_match.group(1).strip() if alt_match else "N/A"
-                    data[key] = value if value else "N/A"
-                    if value != "N/A":
-                        self.logger.debug(
-                            f"Found {key} using additional pattern: {value}"
-                        )
-                    else:
-                        self.logger.debug(f"{key} not found, set to 'N/A'")
-                else:
-                    data[key] = "N/A"
-                    self.logger.debug(f"{key} not found, set to 'N/A'")
+                self.logger.debug(f"{key} not found, kept as 'N/A'")
         return {"Requesting Party": data}
 
     def extract_insured_information(self, text: str):
@@ -423,7 +381,13 @@ class RuleBasedParser(BaseParser):
             dict: Extracted 'Insured Information' data.
         """
         self.logger.debug("Extracting Insured Information.")
-        data = {}
+        data = {
+            "Name": "N/A",
+            "Contact #": "N/A",
+            "Loss Address": "N/A",
+            "Public Adjuster": "N/A",
+            "Owner or Tenant": "N/A",
+        }
         for key, pattern in self.patterns["Insured Information"].items():
             match = pattern.search(text)
             if match:
@@ -431,27 +395,13 @@ class RuleBasedParser(BaseParser):
                 if key == "Owner or Tenant":
                     value = (
                         value.capitalize()
-                        if value.lower() in ["yes", "no", "owner", "tenant"]
+                        if value.lower() in ["owner", "tenant"]
                         else "N/A"
                     )
                 data[key] = value if value else "N/A"
                 self.logger.debug(f"Found {key}: {value}")
             else:
-                # Attempt to find using additional patterns if applicable
-                if key in self.additional_patterns.get("Insured Information", {}):
-                    alt_pattern = self.additional_patterns["Insured Information"][key]
-                    alt_match = alt_pattern.search(text)
-                    value = alt_match.group(1).strip() if alt_match else "N/A"
-                    data[key] = value if value else "N/A"
-                    if value != "N/A":
-                        self.logger.debug(
-                            f"Found {key} using additional pattern: {value}"
-                        )
-                    else:
-                        self.logger.debug(f"{key} not found, set to 'N/A'")
-                else:
-                    data[key] = "N/A"
-                    self.logger.debug(f"{key} not found, set to 'N/A'")
+                self.logger.debug(f"{key} not found, kept as 'N/A'")
         return {"Insured Information": data}
 
     def extract_adjuster_information(self, text: str):
@@ -465,12 +415,18 @@ class RuleBasedParser(BaseParser):
             dict: Extracted 'Adjuster Information' data.
         """
         self.logger.debug("Extracting Adjuster Information.")
-        data = {}
+        data = {
+            "Adjuster Name": "N/A",
+            "Adjuster Phone Number": "N/A",
+            "Adjuster Email": "N/A",
+            "Job Title": "N/A",
+            "Address": "N/A",
+            "Policy #": "N/A",
+        }
         for key, pattern in self.patterns["Adjuster Information"].items():
             match = pattern.search(text)
             if match:
                 value = match.group(1).strip()
-                # Specific handling for phone numbers and emails
                 if key == "Adjuster Phone Number":
                     value = self.format_phone_number(value)
                 elif key == "Adjuster Email":
@@ -478,41 +434,8 @@ class RuleBasedParser(BaseParser):
                 data[key] = value if value else "N/A"
                 self.logger.debug(f"Found {key}: {value}")
             else:
-                # Attempt to find using additional patterns if applicable
-                if key in self.additional_patterns.get("Adjuster Information", {}):
-                    alt_pattern = self.additional_patterns["Adjuster Information"][key]
-                    alt_match = alt_pattern.search(text)
-                    value = alt_match.group(1).strip() if alt_match else "N/A"
-                    data[key] = value if value else "N/A"
-                    if value != "N/A":
-                        self.logger.debug(
-                            f"Found {key} using additional pattern: {value}"
-                        )
-                    else:
-                        self.logger.debug(f"{key} not found, set to 'N/A'")
-                else:
-                    data[key] = "N/A"
-                    self.logger.debug(f"{key} not found, set to 'N/A'")
+                self.logger.debug(f"{key} not found, kept as 'N/A'")
         return {"Adjuster Information": data}
-
-    def format_phone_number(self, phone: str) -> str:
-        """
-        Formats the phone number to a standard format.
-
-        Args:
-            phone (str): Raw phone number.
-
-        Returns:
-            str: Formatted phone number.
-        """
-        digits = re.sub(r"\D", "", phone)
-        if len(digits) == 10:
-            return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
-        elif len(digits) == 11 and digits.startswith("1"):
-            return f"+1 ({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
-        else:
-            self.logger.warning(f"Unexpected phone number format: {phone}")
-            return phone  # Return as is if format is unexpected
 
     def extract_assignment_information(self, text: str):
         """
@@ -525,79 +448,33 @@ class RuleBasedParser(BaseParser):
             dict: Extracted 'Assignment Information' data.
         """
         self.logger.debug("Extracting Assignment Information.")
-        data = {}
+        data = {
+            "Date of Loss/Occurrence": "N/A",
+            "Cause of loss": "N/A",
+            "Facts of Loss": "N/A",
+            "Loss Description": "N/A",
+            "Residence Occupied During Loss": "N/A",
+            "Was Someone home at time of damage": "N/A",
+            "Repair or Mitigation Progress": "N/A",
+            "Type": "N/A",
+            "Inspection type": "N/A",
+        }
         for key, pattern in self.patterns["Assignment Information"].items():
             match = pattern.search(text)
             if match:
                 value = match.group(1).strip()
-                # Specific handling for dates
                 if key == "Date of Loss/Occurrence":
                     value = self.parse_date(value)
                 elif key in [
                     "Residence Occupied During Loss",
                     "Was Someone home at time of damage",
                 ]:
-                    value = (
-                        value.capitalize() if value.lower() in ["yes", "no"] else "N/A"
-                    )
+                    value = self.parse_boolean(value)
                 data[key] = value if value else "N/A"
                 self.logger.debug(f"Found {key}: {value}")
             else:
-                # Attempt to find using additional patterns if applicable
-                if key in self.additional_patterns.get("Assignment Information", {}):
-                    alt_pattern = self.additional_patterns["Assignment Information"][
-                        key
-                    ]
-                    alt_match = alt_pattern.search(text)
-                    value = alt_match.group(1).strip() if alt_match else "N/A"
-                    if value:
-                        if key == "Date of Loss/Occurrence":
-                            value = self.parse_date(value)
-                        elif key in [
-                            "Residence Occupied During Loss",
-                            "Was Someone home at time of damage",
-                        ]:
-                            value = (
-                                value.capitalize()
-                                if value.lower() in ["yes", "no"]
-                                else "N/A"
-                            )
-                        data[key] = value
-                        self.logger.debug(
-                            f"Found {key} using additional pattern: {value}"
-                        )
-                    else:
-                        data[key] = "N/A"
-                        self.logger.debug(
-                            f"{key} not found using additional pattern, set to 'N/A'"
-                        )
-                else:
-                    data[key] = "N/A"
-                    self.logger.debug(f"{key} not found, set to 'N/A'")
+                self.logger.debug(f"{key} not found, kept as 'N/A'")
         return {"Assignment Information": data}
-
-    def parse_date(self, date_str: str) -> str:
-        """
-        Parses and standardizes date formats.
-
-        Args:
-            date_str (str): Raw date string.
-
-        Returns:
-            str: Standardized date in YYYY-MM-DD format or original string if parsing fails.
-        """
-        for fmt in self.date_formats:
-            try:
-                date_obj = datetime.strptime(date_str, fmt)
-                standardized_date = date_obj.strftime("%Y-%m-%d")
-                self.logger.debug(
-                    f"Parsed date '{date_str}' as '{standardized_date}' using format '{fmt}'."
-                )
-                return standardized_date
-            except ValueError:
-                continue
-        self.logger.warning(f"Unable to parse date: {date_str}")
-        return date_str  # Return as is if parsing fails
 
     def extract_assignment_type(self, text: str):
         """
@@ -617,7 +494,6 @@ class RuleBasedParser(BaseParser):
             "Foundation": False,
             "Other": {"Checked": False, "Details": "N/A"},
         }
-
         for key, pattern in self.patterns["Assignment Type"].items():
             match = pattern.search(text)
             if key != "Other":
@@ -645,21 +521,19 @@ class RuleBasedParser(BaseParser):
             dict: Extracted additional details.
         """
         self.logger.debug("Extracting Additional Details/Special Instructions.")
-        data = {}
         pattern = self.patterns["Additional details/Special Instructions"][
             "Additional details/Special Instructions"
         ]
         match = pattern.search(text)
         if match:
             value = match.group(1).strip()
-            data["Additional details/Special Instructions"] = value if value else "N/A"
             self.logger.debug(f"Found Additional details/Special Instructions: {value}")
         else:
-            data["Additional details/Special Instructions"] = "N/A"
+            value = "N/A"
             self.logger.debug(
                 "Additional details/Special Instructions not found, set to 'N/A'"
             )
-        return data
+        return {"Additional details/Special Instructions": value}
 
     def extract_attachments(self, text: str):
         """
@@ -672,54 +546,23 @@ class RuleBasedParser(BaseParser):
             dict: Extracted attachment details.
         """
         self.logger.debug("Extracting Attachment(s).")
-        data = {}
         pattern = self.patterns["Attachment(s)"]["Attachment(s)"]
         match = pattern.search(text)
         if match:
             attachments = match.group(1).strip()
             if attachments.lower() != "n/a" and attachments:
-                # Split by multiple delimiters
                 attachment_list = re.split(r",|;|\n|•|–|-", attachments)
-                # Further filter and validate attachment entries
                 attachment_list = [
-                    att.strip()
-                    for att in attachment_list
-                    if att.strip()
-                    and (
-                        self.is_valid_attachment(att.strip())
-                        or self.is_valid_url(att.strip())
-                    )
+                    att.strip() for att in attachment_list if att.strip()
                 ]
-                data["Attachment(s)"] = attachment_list if attachment_list else "N/A"
                 self.logger.debug(f"Found Attachments: {attachment_list}")
             else:
-                data["Attachment(s)"] = "N/A"
+                attachment_list = ["N/A"]
                 self.logger.debug("Attachments marked as 'N/A' or empty.")
         else:
-            data["Attachment(s)"] = "N/A"
-            self.logger.debug("Attachment(s) not found, set to 'N/A'")
-        return data
-
-    def is_valid_attachment(self, attachment: str) -> bool:
-        # Simple validation for file extensions
-        valid_extensions = [".pdf", ".docx", ".xlsx", ".zip", ".png", ".jpg"]
-        return any(attachment.lower().endswith(ext) for ext in valid_extensions)
-
-    def is_valid_url(self, attachment: str) -> bool:
-        # Simple URL validation
-        url_pattern = re.compile(
-            r"^(?:http|ftp)s?://"  # http:// or https://
-            r"(?:\S+(?::\S*)?@)?"  # user:pass@
-            r"(?:(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])\."  # IP...
-            r"(?:1?\d{1,2}|2[0-4]\d|25[0-5])\."
-            r"(?:1?\d{1,2}|2[0-4]\d|25[0-5])\."
-            r"(?:1?\d{1,2}|2[0-4]\d|25[0-5]))|"  # ...or
-            r"(?:(?:[a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))"  # domain...
-            r"(?::\d{2,5})?"  # optional port
-            r"(?:/\S*)?$",
-            re.IGNORECASE,
-        )
-        return re.match(url_pattern, attachment) is not None
+            attachment_list = ["N/A"]
+            self.logger.debug("Attachment(s) not found, set to ['N/A']")
+        return {"Attachment(s)": attachment_list}
 
     def extract_entities(self, email_content: str):
         """
@@ -743,6 +586,63 @@ class RuleBasedParser(BaseParser):
                     entities[ent.label_].append(ent.text)
         self.logger.debug(f"Extracted Entities: {entities}")
         return entities
+
+    def format_phone_number(self, phone: str) -> str:
+        """
+        Formats the phone number to a standard format.
+
+        Args:
+            phone (str): Raw phone number.
+
+        Returns:
+            str: Formatted phone number.
+        """
+        digits = re.sub(r"\D", "", phone)
+        if len(digits) == 10:
+            return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+        elif len(digits) == 11 and digits.startswith("1"):
+            return f"+1 ({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
+        else:
+            self.logger.warning(f"Unexpected phone number format: {phone}")
+            return phone
+
+    def parse_date(self, date_str: str) -> str:
+        """
+        Parses and standardizes date formats.
+
+        Args:
+            date_str (str): Raw date string.
+
+        Returns:
+            str: Standardized date in YYYY-MM-DD format or original string if parsing fails.
+        """
+        for fmt in self.date_formats:
+            try:
+                date_obj = datetime.strptime(date_str, fmt)
+                return date_obj.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        self.logger.warning(f"Unable to parse date: {date_str}")
+        return date_str
+
+    def parse_boolean(self, value: str) -> str:
+        """
+        Parses boolean values from string.
+
+        Args:
+            value (str): String representation of a boolean value.
+
+        Returns:
+            str: 'Yes', 'No', or 'N/A' if parsing fails.
+        """
+        value = value.lower().strip()
+        if value in self.boolean_values["positive"]:
+            return "Yes"
+        elif value in self.boolean_values["negative"]:
+            return "No"
+        else:
+            self.logger.warning(f"Unable to parse boolean value: {value}")
+            return "N/A"
 
     def enhance_logging(self):
         """

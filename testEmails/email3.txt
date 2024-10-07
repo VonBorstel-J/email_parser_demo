@@ -1,0 +1,44 @@
+Subject: Hail Damage Assessment - Commercial Property
+Requesting Party
+Insurance Company: Premier Insurance Group
+Handler: Tom Wilson
+Carrier Claim Number: PIG-135792
+Insured Information
+Name: Best Buy, Inc. Store #48252
+Contact #: (555) 888-9999
+Loss Address: 741 Business Park Dr, Townville, USA
+Public Adjuster: N/A
+Is the insured an Owner or a Tenant of the loss location? Tenant
+Adjuster Information
+Adjuster Name: Tom Wilson
+Adjuster Phone Number: (555) 777-8888
+Adjuster Email: twilson@premierinsurance.com
+Job Title: Commercial Property Adjuster
+Address: 852 Corporate Way, Cityville, USA
+Policy #: CP-975312
+Assignment Information
+Date of Loss/Occurrence: 05/08/2023
+Cause of loss: Hailstorm
+Facts of Loss: Severe thunderstorm with golf ball sized hail damaged the store roof and HVAC equipment
+Loss Description: Dented metal roofing, damaged rooftop HVAC units
+Residence Occupied During Loss: N/A - Commercial property
+Was Someone home at time of damage: No, loss occurred after business hours
+Repair or Mitigation Progress: Temporary roof tarping in place
+Type: Commercial
+Inspection type: Hail damage inspection
+Check the box of applicable assignment type
+Wind [ ]
+Structural [X]
+Hail [X]
+Foundation [ ]
+Other [ ] - provide details:
+Additional details/Special Instructions:
+Please have your team assess the hail damage to the metal roof, document the number and size of impacts, and determine if the roof can be repaired or needs full replacement. Also check the rooftop HVAC for hail damage. An inspection report with photos and a repair/replacement estimate is needed.
+Attachments:
+
+PremIns-Claim135792-RoofDamagePhotos.zip
+BestBuy48252-RoofPlan.pdf
+
+Let me know if you need any other information to get started on these assignments. We appreciate TEC's expertise!
+Tom Wilson
+Premier Insurance Group

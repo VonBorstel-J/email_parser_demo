@@ -1,101 +1,47 @@
-# Gmail API Integration
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
-
-# Environment Variable Management
 python-dotenv
-
-# Email Parsing and NLP
-spaCy
+spacy
 openai
 transformers
 torch
 langchain
 mail-parser
-
-# HTTP Requests for API Integration
 requests
-
-# Flask Web Framework for User Interface
 Flask
 Flask-Login
 Flask-WTF
 Flask-Principal
-
-# Security and Form Handling
 WTForms
 werkzeug
-
-# Data Validation and Processing
 jsonschema
 pydantic
 pandas
-
-# Quickbase Integration
-# If using a Quickbase SDK, uncomment the following line:
-# quickbase-client
-
-# Testing Frameworks
 pytest
 pytest-mock
 unittest2
-
-# Code Quality and Linting
 flake8
 black
 isort
-
-# Logging
 loguru
-
-# Asynchronous Processing (Optional)
 aiohttp
-# asyncio is part of the Python standard library and does not need to be installed separately.
-
-# Task Scheduling (Optional)
 APScheduler
-
-# Database Integration (Optional)
 SQLAlchemy
 psycopg2-binary
-
-# Containerization (Docker-related dependencies are not Python packages, but you can include docker-compose if needed)
-# docker-compose
-
-# Utilities
 tqdm
 numpy
-
-# Additional NLP Utilities
 nltk
-
-# File Handling
 python-multipart
-
-# Frontend Integration (Optional, if serving static files or templates)
 Jinja2
-
-# Security Enhancements
 bcrypt
 itsdangerous
-
-# Optional: Local LLM Hosting
-# If hosting a local LLM, additional packages may be required depending on the model and framework.
-
-# Documentation
 sphinx
-
-# Additional Dependencies Based on Code Usage
-
-# File Locking for Email Retrieval
 filelock
-
-# Retry Mechanism for Robustness
 tenacity
-
-# FastAPI and Related Dependencies (If you intend to use FastAPI alongside Flask)
 fastapi
 uvicorn[standard]
 python-jose[cryptography]
 passlib[bcrypt]
+validators
+json_log_formatter

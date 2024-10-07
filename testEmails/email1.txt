@@ -1,0 +1,39 @@
+Subject: Forensic Engineering Inspection Request - Water Damage Claim
+Requesting Party
+Insurance Company: Acme Insurance Co.
+Handler: John Smith
+Carrier Claim Number: AC-789123
+Insured Information
+Name: Sarah Johnson
+Contact #: (555) 123-4567
+Loss Address: 123 Main St, Anytown, USA
+Public Adjuster: N/A
+Is the insured an Owner or a Tenant of the loss location? Owner
+Adjuster Information
+Adjuster Name: John Smith
+Adjuster Phone Number: (555) 987-6543
+Adjuster Email: john.smith@acmeinsurance.com
+Job Title: Senior Claims Adjuster
+Address: 456 Oak Rd, Somewhere, USA
+Policy #: HO-123456
+Assignment Information
+Date of Loss/Occurrence: 05/15/2023
+Cause of loss: Heavy rains and flooding
+Facts of Loss: Heavy rains caused flooding in the basement, damaging drywall, flooring, and contents
+Loss Description: Water damage to finished basement from flooding
+Residence Occupied During Loss: Yes
+Was Someone home at time of damage: No
+Repair or Mitigation Progress: Mitigation company has extracted water and set up drying equipment
+Type: Residential
+Inspection type: Cause and Origin, Scope of Damage
+Check the box of applicable assignment type
+Wind [ ]
+Structural [ ]
+Hail [ ]
+Foundation [X]
+Other [X] - provide details: Assess water damage and any necessary mold remediation
+Additional details/Special Instructions: Please assess the cause of the flooding, document the scope of damages, and provide a repair estimate. Let us know if any additional experts like a hygienist are needed for mold.
+Attachments:
+
+ACME-Claim-AC789123-LossPhotos.zip
+ACME-Claim-AC789123-MitigationInvoice.pdf

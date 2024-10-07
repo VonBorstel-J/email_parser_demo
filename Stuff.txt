@@ -108,3 +108,10 @@ Emily R. Thompson
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
+src/parsers/rule_based_parser.py: The main file containing the RuleBasedParser class.
+src/parsers/base_parser.py: The abstract base class that RuleBasedParser inherits from.
+src/parsers/parser_options.py: Defines the available parser options.
+src/parsers/parser_registry.py: Shows how the parser is registered and retrieved.
+requirements.txt: To understand the dependencies, particularly spaCy.
+importSchema.txt: Contains the schema for the output format required for Quickbase import.
+src/parsers/local_llm_parser.py: Con

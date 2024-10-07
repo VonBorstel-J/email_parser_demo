@@ -1,0 +1,43 @@
+importSchema.txt
+
+Requesting Party
+Insurance Company: 
+Handler: 
+Carrier Claim Number: 
+
+Insured Information
+Name: 
+Contact #: 
+Loss Address: 
+Public Adjuster: 
+Is the insured an Owner or a Tenant of the loss location? 
+
+Adjuster Information
+Adjuster Name: 
+Adjuster Phone Number: 
+Adjuster Email:
+Job Title: 
+Address: 
+Policy #: 
+
+Assignment Information
+Date of Loss/Occurrence: 
+Cause of loss: 
+Facts of Loss: 
+Loss Description: 
+Residence Occupied During Loss:
+Was Someone home at time of damage: 
+Repair or Mitigation Progress: 
+Type: 
+Inspection type: 
+
+Check the box of applicable assignment type
+Wind [ ]
+Structural [ ]
+Hail [ ]
+Foundation [ ]
+Other [] - provide details: 
+
+Additional details/Special Instructions: 
+
+Attachment(s): 

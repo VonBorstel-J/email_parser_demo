@@ -1,0 +1,43 @@
+Subject: Structural Inspection Needed - Tornado Damage
+Requesting Party
+Insurance Company: Best Insurers Ltd
+Handler: Jessica Brown
+Carrier Claim Number: BI-456789
+Insured Information
+Name: Michael Lee
+Contact #: (555) 111-2222
+Loss Address: 789 Elm Ct, Somewhere, USA
+Public Adjuster: James Davis, AdjustRight Inc.
+Is the insured an Owner or a Tenant of the loss location? Owner
+Adjuster Information
+Adjuster Name: Jessica Brown
+Adjuster Phone Number: (555) 333-4444
+Adjuster Email: jessica.brown@bestinsurers.com
+Job Title: General Adjuster
+Address: 987 Pine Ln, Nowhere, USA
+Policy #: HO-987654
+Assignment Information
+Date of Loss/Occurrence: 04/27/2023
+Cause of loss: Tornado
+Facts of Loss: EF-3 tornado hit the area causing significant damage to the home
+Loss Description: Roof blown off, exterior walls collapsed, windows shattered
+Residence Occupied During Loss: No, insured was out of town
+Was Someone home at time of damage: No
+Repair or Mitigation Progress: Property secured with temporary fencing, debris removed
+Type: Residential
+Inspection type: Structural integrity assessment
+Check the box of applicable assignment type
+Wind [X]
+Structural [X]
+Hail [ ]
+Foundation [X]
+Other [ ] - provide details:
+Additional details/Special Instructions:
+Hi TEC Engineering,
+We need a full structural assessment on this tornado damaged home ASAP. The adjuster and PA will meet you on site. Focus your report on the extent of structural damage, repairs needed to bring to pre-loss condition, and if any areas are a total loss.
+Thanks,
+Jessica
+Attachments:
+
+BestIns-Claim456789-AerialDamagePhotos.zip
+BestIns-Claim456789-LossSitePhotos.zip

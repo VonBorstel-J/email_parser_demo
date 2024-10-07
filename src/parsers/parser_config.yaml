@@ -1,0 +1,136 @@
+# src/parsers/parser_config.yaml
+
+section_headers:
+  - Requesting Party
+  - Insured Information
+  - Adjuster Information
+  - Assignment Information
+  - Assignment Type
+  - Additional details/Special Instructions
+  - Attachment(s)
+
+patterns:
+  Requesting Party:
+    Insurance Company: '(?i)Insurance\s*(?:Company|Carrier)?\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Insurance Company' or 'Carrier' followed by the company name
+    Handler: '(?i)(?:Handler|Adjuster)\s*:?\s*(.*?)\s*(?=\n|$)'  # Handles variations like 'Handler' or 'Adjuster'
+    Carrier Claim Number: '(?i)(?:Carrier\s*)?(?:Claim|File)\s*(?:Number|#)\s*:?\s*(\S+)'  # Captures claim number with optional 'Carrier'
+  
+  Insured Information:
+    Name: '(?i)(?:Insured\s*)?Name\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Name' with optional 'Insured'
+    Contact #: '(?i)(?:Contact|Phone)\s*(?:#|Number)\s*:?\s*(\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})'  # Captures various phone number formats
+    Loss Address: '(?i)(?:Loss|Damaged?)\s*Address\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Loss Address' or 'Damaged Address'
+    Public Adjuster: '(?i)Public\s*Adjuster\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Public Adjuster'
+    Owner or Tenant: '(?i)(?:Is\s*the\s*insured\s*an?\s*)?Owner\s*or\s*(?:a\s*)?Tenant\s*(?:of\s*the\s*loss\s*location)?\s*:?\s*(Owner|Tenant|Yes|No)'  # Captures 'Owner' or 'Tenant' with variations
+
+  Adjuster Information:
+    Adjuster Name: '(?i)Adjuster\s*Name\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Adjuster Name'
+    Adjuster Phone Number: '(?i)(?:Tel|Telephone|Cell|Mobile)\s*(?:Number|#)\s*:?\s*(\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})'  # Captures various phone number formats
+    Adjuster Email: '(?i)(?:Adjuster\s*)?Email\s*:?\s*([\w\.-]+@[\w\.-]+\.\w+)'  # Captures 'Adjuster Email' with optional 'Adjuster'
+    Job Title: '(?i)(?:Job|Position)\s*Title\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Job Title' or 'Position Title'
+    Address: '(?i)(?:Company|Office)?\s*Address\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Address' with optional 'Company' or 'Office'
+    Policy #: '(?i)Policy\s*(?:#|Number)\s*:?\s*(\w+)'  # Captures 'Policy #' or 'Policy Number'
+
+  Assignment Information:
+    Date of Loss/Occurrence: '(?i)Date\s*of\s*(?:Loss|Occurrence|Damage)\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\w+\s+\d{1,2},?\s*\d{4})'  # Captures various date formats
+    Cause of loss: '(?i)Cause\s*of\s*(?:loss|damage)\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Cause of loss' or 'Cause of damage'
+    Facts of Loss: '(?i)Facts\s*of\s*Loss\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Facts of Loss'
+    Loss Description: '(?i)(?:Loss|Damage)\s*Description\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Loss Description' or 'Damage Description'
+    Residence Occupied During Loss: '(?i)Residence\s*Occupied\s*During\s*Loss\s*:?\s*(Yes|No|Unknown)'  # Captures 'Yes', 'No', or 'Unknown'
+    Was Someone home at time of damage: '(?i)(?:Was\s*Someone|Anyone)\s*home\s*(?:at|during)\s*(?:time|moment)\s*of\s*damage\s*:?\s*(Yes|No|Unknown)'  # Captures 'Yes', 'No', or 'Unknown'
+    Repair or Mitigation Progress: '(?i)Repair\s*(?:or|/)\s*Mitigation\s*Progress\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Repair or Mitigation Progress'
+    Type: '(?i)Type\s*(?:of\s*(?:Loss|Damage|Claim))?\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Type of Loss/Damage/Claim'
+    Inspection type: '(?i)Inspection\s*type\s*:?\s*(.*?)\s*(?=\n|$)'  # Captures 'Inspection type'
+
+  Assignment Type:
+    Wind: '(?i)Wind\s*(?:\[\s*([xX])\s*\]|\(\s*([xX])\s*\)|:?\s*(Yes|No))'  # Captures checkbox or Yes/No
+    Structural: '(?i)Structural\s*(?:\[\s*([xX])\s*\]|\(\s*([xX])\s*\)|:?\s*(Yes|No))'  # Captures checkbox or Yes/No
+    Hail: '(?i)Hail\s*(?:\[\s*([xX])\s*\]|\(\s*([xX])\s*\)|:?\s*(Yes|No))'  # Captures checkbox or Yes/No
+    Foundation: '(?i)Foundation\s*(?:\[\s*([xX])\s*\]|\(\s*([xX])\s*\)|:?\s*(Yes|No))'  # Captures checkbox or Yes/No
+    Other: '(?i)Other\s*(?:\[\s*([xX])\s*\]|\(\s*([xX])\s*\)|:?\s*(Yes|No))(?:\s*-?\s*provide\s*details?\s*:?\s*(.*?))?\s*(?=\n|$)'  # Captures checkbox, Yes/No, and details
+
+  Additional details/Special Instructions:
+    Additional details/Special Instructions: '(?i)(?:Additional\s*details?|Special\s*Instructions?)\s*:?\s*(.*)'  # Captures additional details or special instructions
+
+  Attachment(s):
+    Attachment(s): '(?i)Attachments?\s*(?:\(s\))?\s*:?\s*(.*)'  # Captures attachments with optional plural and parentheses
+
+additional_patterns:
+  Requesting Party:
+    Insurance Company: '(?i)(?:Insurance|Carrier)\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Insurance Company'
+    Handler: '(?i)(?:Claim|File)\s*(?:Handler|Manager)\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Handler'
+    Carrier Claim Number: '(?i)(?:File|Reference)\s*(?:Number|#)\s*:?\s*(\S+)'  # Alternative pattern for 'Carrier Claim Number'
+
+  Insured Information:
+    Name: '(?i)(?:Claimant|Policyholder)\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Name'
+    Contact #: '(?i)(?:Tel|Telephone|Cell|Mobile)\s*:?\s*(\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})'  # Alternative pattern for 'Contact #'
+    Loss Address: '(?i)(?:Property|Incident)\s*Address\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Loss Address'
+    Public Adjuster: '(?i)(?:PA|Pub\.\s*Adj\.)\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Public Adjuster'
+
+  Adjuster Information:
+    Adjuster Name: '(?i)(?:Assigned|Handling)\s*Adjuster\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Adjuster Name'
+    Adjuster Phone Number: '(?i)(?:Tel|Telephone|Cell|Mobile)\s*(?:Number|#)\s*:?\s*(\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})'  # Alternative pattern for 'Adjuster Phone Number'
+    Adjuster Email: '(?i)(?:E-?mail|Contact)\s*:?\s*([\w\.-]+@[\w\.-]+\.\w+)'  # Alternative pattern for 'Adjuster Email'
+
+  Assignment Information:
+    Date of Loss/Occurrence: '(?i)(?:DOL|Loss\s*Date)\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\w+\s+\d{1,2},?\s*\d{4})'  # Alternative pattern for 'Date of Loss/Occurrence'
+    Cause of loss: '(?i)(?:Loss\s*Type|Peril)\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Cause of loss'
+    Type: '(?i)(?:Claim|Loss)\s*Type\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Type'
+    Inspection type: '(?i)(?:Inspection|Assessment)\s*(?:Type|Method)\s*:?\s*(.*?)\s*(?=\n|$)'  # Alternative pattern for 'Inspection type'
+
+date_formats:
+  - '%m/%d/%Y'
+  - '%d/%m/%Y'
+  - '%Y-%m-%d'
+  - '%B %d, %Y'
+  - '%b %d, %Y'
+  - '%d %B %Y'
+  - '%d %b %Y'
+  - '%Y/%m/%d'
+  - '%d-%m-%Y'
+  - '%Y.%m.%d'
+  - '%d.%m.%Y'
+  - '%m-%d-%Y'
+  - '%Y%m%d'
+  - '%B %-d, %Y'  # For systems supporting '-' flag
+  - '%b %-d, %Y'
+  - '%Y-%m-%dT%H:%M:%S'
+  - '%Y-%m-%dT%H:%M:%S.%fZ'
+
+boolean_values:
+  positive:
+    - 'yes'
+    - 'y'
+    - 'true'
+    - 't'
+    - '1'
+    - 'x'
+    - '[x]'
+    - '[X]'
+    - '(x)'
+    - '(X)'
+  negative:
+    - 'no'
+    - 'n'
+    - 'false'
+    - 'f'
+    - '0'
+    - '[ ]'
+    - '()'
+    - '[N/A]'
+    - '(N/A)'
+
+valid_extensions:
+  - '.pdf'
+  - '.docx'
+  - '.xlsx'
+  - '.zip'
+  - '.png'
+  - '.jpg'
+  - '.jpeg'
+  - '.gif'
+  - '.txt'
+  - '.csv'
+
+# Optionally, add URL validation settings if using validators
+url_validation:
+  use_external_library: true  # Set to true to use validators library

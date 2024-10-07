@@ -1,3 +1,5 @@
+#src\parsers\parser_registry.py
+
 import logging
 from src.parsers.parser_options import ParserOption
 from src.parsers.rule_based_parser import RuleBasedParser
