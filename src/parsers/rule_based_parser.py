@@ -242,20 +242,34 @@ class RuleBasedParser(BaseParser):
                 self.logger.warning(
                     f"No extraction method found for section: {section}"
                 )
+                if section == "Additional details/Special Instructions":
+                    extracted_data.update(self.default_section_data(section))
 
-        # Extract entities using NLP
-        entities = self.extract_entities(email_content)
-        extracted_data["Entities"] = entities
+                # Ensure 'Additional details/Special Instructions' is always present
+                if "Additional details/Special Instructions" not in extracted_data:
+                    extracted_data.update(
+                        self.default_section_data(
+                            "Additional details/Special Instructions"
+                        )
+                    )
 
-        # Validate the extracted data against the JSON schema
-        is_valid, error_message = validate_json(extracted_data)
-        if not is_valid:
-            self.logger.error(f"JSON Schema Validation Error: {error_message}")
-            raise ValueError(f"JSON Schema Validation Error: {error_message}")
+                    # Extract entities using NLP
+                    entities = self.extract_entities(email_content)
+                    extracted_data["Entities"] = entities
 
-        self.logger.debug(f"Extracted Data: {extracted_data}")
-        self.logger.info("Successfully parsed email with RuleBasedParser.")
-        return extracted_data
+                    # Validate the extracted data against the JSON schema
+                    is_valid, error_message = validate_json(extracted_data)
+                    if not is_valid:
+                        self.logger.error(
+                            f"JSON Schema Validation Error: {error_message}"
+                        )
+                        raise ValueError(
+                            f"JSON Schema Validation Error: {error_message}"
+                        )
+
+                    self.logger.debug(f"Extracted Data: {extracted_data}")
+                    self.logger.info("Successfully parsed email with RuleBasedParser.")
+                    return extracted_data
 
     def snake_case(self, text: str) -> str:
         """Converts text to snake_case by removing non-word characters and replacing spaces with underscores."""
