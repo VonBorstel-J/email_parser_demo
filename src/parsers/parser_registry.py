@@ -1,9 +1,10 @@
-#src\parsers\parser_registry.py
+# src/parsers/parser_registry.py
 
 import logging
 from src.parsers.parser_options import ParserOption
 from src.parsers.rule_based_parser import RuleBasedParser
 from src.parsers.local_llm_parser import LocalLLMParser  
+from src.parsers.llm_parser import LLMParser  
 
 class ParserRegistry:
     """Registry for managing parsers."""
@@ -48,3 +49,4 @@ ParserRegistry.logger.setLevel(logging.INFO)
 # Register parsers after defining the ParserRegistry class
 ParserRegistry.register_parser(ParserOption.RULE_BASED, RuleBasedParser)
 ParserRegistry.register_parser(ParserOption.LOCAL_LLM, LocalLLMParser)
+ParserRegistry.register_parser(ParserOption.LLM, LLMParser)  # Register LLMParser

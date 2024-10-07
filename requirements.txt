@@ -1,47 +1,71 @@
-google-api-python-client
-google-auth-httplib2
-google-auth-oauthlib
-python-dotenv
-spacy
-openai
-transformers
-torch
-langchain
-mail-parser
-requests
+# Core Dependencies
 Flask
 Flask-Login
 Flask-WTF
 Flask-Principal
 WTForms
-werkzeug
-jsonschema
-pydantic
+Werkzeug
+python-dotenv
+Jinja2
+
+# Parsing and Data Processing
+spacy
 pandas
+mail-parser
+validators
+
+# JSON and Schema Validation
+jsonschema
+json-log-formatter
+
+# HTTP Requests
+requests
+aiohttp
+
+# Logging and Utilities
+loguru
+tenacity
+filelock
+
+# Environment and Configuration
+python-multipart
+
+# Security
+bcrypt
+passlib[bcrypt]
+itsdangerous
+python-jose[cryptography]
+
+# Database
+SQLAlchemy
+psycopg2-binary
+
+# Scheduling
+APScheduler
+
+# Asynchronous Server
+fastapi
+uvicorn[standard]
+
+# Natural Language Processing
+nltk
+torch
+transformers
+langchain
+openai
+
+# Development and Testing
 pytest
 pytest-mock
 unittest2
 flake8
 black
 isort
-loguru
-aiohttp
-APScheduler
-SQLAlchemy
-psycopg2-binary
-tqdm
-numpy
-nltk
-python-multipart
-Jinja2
-bcrypt
-itsdangerous
+flake8-black
 sphinx
-filelock
-tenacity
-fastapi
-uvicorn[standard]
-python-jose[cryptography]
-passlib[bcrypt]
-validators
-json_log_formatter
+
+# Progress Bars
+tqdm
+
+# Numerical Computing
+numpy

@@ -1,0 +1,1710 @@
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\parsers\local_llm_parser.py ###
+
+# src/parsers/local_llm_parser.py
+
+import logging
+import json
+import re
+import os
+import requests
+import time
+from requests.exceptions import RequestException
+from src.parsers.base_parser import BaseParser
+from dotenv import load_dotenv
+import jsonschema
+from jsonschema import validate
+import validators  # New dependency for URL validation
+
+# Load environment variables from .env
+load_dotenv()
+
+# Define the JSON schema based on the assignment schema
+assignment_schema = {
+    "type": "object",
+    "properties": {
+        "Requesting Party": {
+            "type": "object",
+            "properties": {
+                "Insurance Company": {"type": "string"},
+                "Handler": {"type": "string"},
+                "Carrier Claim Number": {"type": "string"},
+            },
+            "required": ["Insurance Company", "Handler", "Carrier Claim Number"],
+        },
+        "Insured Information": {
+            "type": "object",
+            "properties": {
+                "Name": {"type": "string"},
+                "Contact #": {"type": "string"},
+                "Loss Address": {"type": "string"},
+                "Public Adjuster": {"type": "string"},
+                "Owner or Tenant": {"type": "string"},
+            },
+            "required": [
+                "Name",
+                "Contact #",
+                "Loss Address",
+                "Public Adjuster",
+                "Owner or Tenant",
+            ],
+        },
+        "Adjuster Information": {
+            "type": "object",
+            "properties": {
+                "Adjuster Name": {"type": "string"},
+                "Adjuster Phone Number": {"type": "string"},
+                "Adjuster Email": {"type": "string"},
+                "Job Title": {"type": "string"},
+                "Address": {"type": "string"},
+                "Policy #": {"type": "string"},
+            },
+            "required": [
+                "Adjuster Name",
+                "Adjuster Phone Number",
+                "Adjuster Email",
+                "Job Title",
+                "Address",
+                "Policy #",
+            ],
+        },
+        "Assignment Information": {
+            "type": "object",
+            "properties": {
+                "Date of Loss/Occurrence": {"type": "string"},
+                "Cause of loss": {"type": "string"},
+                "Facts of Loss": {"type": "string"},
+                "Loss Description": {"type": "string"},
+                "Residence Occupied During Loss": {"type": "string"},
+                "Was Someone home at time of damage": {"type": "string"},
+                "Repair or Mitigation Progress": {"type": "string"},
+                "Type": {"type": "string"},
+                "Inspection type": {"type": "string"},
+            },
+            "required": [
+                "Date of Loss/Occurrence",
+                "Cause of loss",
+                "Facts of Loss",
+                "Loss Description",
+                "Residence Occupied During Loss",
+                "Was Someone home at time of damage",
+                "Repair or Mitigation Progress",
+                "Type",
+                "Inspection type",
+            ],
+        },
+        "Assignment Type": {
+            "type": "object",
+            "properties": {
+                "Wind": {"type": "boolean"},
+                "Structural": {"type": "boolean"},
+                "Hail": {"type": "boolean"},
+                "Foundation": {"type": "boolean"},
+                "Other": {
+                    "type": "object",
+                    "properties": {
+                        "Checked": {"type": "boolean"},
+                        "Details": {"type": "string"},
+                    },
+                    "required": ["Checked", "Details"],
+                },
+            },
+            "required": ["Wind", "Structural", "Hail", "Foundation", "Other"],
+        },
+        "Additional details/Special Instructions": {"type": "string"},
+        "Attachment(s)": {"type": "array", "items": {"type": "string"}},
+        "Entities": {
+            "type": "object",
+            "additionalProperties": {"type": "array", "items": {"type": "string"}},
+        },
+    },
+    "required": [
+        "Requesting Party",
+        "Insured Information",
+        "Adjuster Information",
+        "Assignment Information",
+        "Assignment Type",
+        "Additional details/Special Instructions",
+        "Attachment(s)",
+        "Entities",
+    ],
+}
+
+
+def validate_json(parsed_data):
+    try:
+        validate(instance=parsed_data, schema=assignment_schema)
+        return True, ""
+    except jsonschema.exceptions.ValidationError as err:
+        return False, err.message
+
+
+class LocalLLMParser(BaseParser):
+    """Parser that uses a Local LLM hosted on LLM Studio to parse email content."""
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.api_endpoint = os.getenv("LOCAL_LLM_API_ENDPOINT")
+        self.api_key = os.getenv("LOCAL_LLM_API_KEY")  # If your API requires a key
+
+        if not self.api_endpoint:
+            self.logger.error(
+                "LOCAL_LLM_API_ENDPOINT not set in environment variables."
+            )
+            raise ValueError("LOCAL_LLM_API_ENDPOINT is required.")
+
+        self.headers = {"Content-Type": "application/json"}
+
+        if self.api_key:
+            self.headers["Authorization"] = f"Bearer {self.api_key}"
+
+        # Verify that the API is reachable
+        try:
+            response = requests.get(self.api_endpoint, headers=self.headers, timeout=10)
+            if response.status_code == 200:
+                self.logger.info("Connected to LLM Studio successfully.")
+            else:
+                self.logger.error(
+                    f"Failed to connect to LLM Studio. Status Code: {response.status_code}"
+                )
+                raise ConnectionError(
+                    f"Failed to connect to LLM Studio. Status Code: {response.status_code}"
+                )
+        except Exception as e:
+            self.logger.error(f"Error connecting to LLM Studio: {e}")
+            raise
+
+    def parse(self, email_content: str):
+        self.logger.info("Parsing email content with LocalLLMParser.")
+        prompt = (
+            "You are an assistant specialized in extracting information from insurance claim emails. "
+            "Please extract the following information from the email content and provide it in pure JSON format without any markdown, code blocks, or additional text. "
+            "Ensure that the JSON strictly follows the given schema. Do not include any explanations or comments.\n\n"
+            "Assignment Schema:\n"
+            "{\n"
+            '  "Requesting Party": {\n'
+            '    "Insurance Company": "",\n'
+            '    "Handler": "",\n'
+            '    "Carrier Claim Number": ""\n'
+            "  },\n"
+            '  "Insured Information": {\n'
+            '    "Name": "",\n'
+            '    "Contact #": "",\n'
+            '    "Loss Address": "",\n'
+            '    "Public Adjuster": "",\n'
+            '    "Owner or Tenant": ""\n'
+            "  },\n"
+            '  "Adjuster Information": {\n'
+            '    "Adjuster Name": "",\n'
+            '    "Adjuster Phone Number": "",\n'
+            '    "Adjuster Email": "",\n'
+            '    "Job Title": "",\n'
+            '    "Address": "",\n'
+            '    "Policy #": ""\n'
+            "  },\n"
+            '  "Assignment Information": {\n'
+            '    "Date of Loss/Occurrence": "",\n'
+            '    "Cause of loss": "",\n'
+            '    "Facts of Loss": "",\n'
+            '    "Loss Description": "",\n'
+            '    "Residence Occupied During Loss": "",\n'
+            '    "Was Someone home at time of damage": "",\n'
+            '    "Repair or Mitigation Progress": "",\n'
+            '    "Type": "",\n'
+            '    "Inspection type": ""\n'
+            "  },\n"
+            '  "Assignment Type": {\n'
+            '    "Wind": false,\n'
+            '    "Structural": false,\n'
+            '    "Hail": false,\n'
+            '    "Foundation": false,\n'
+            '    "Other": {\n'
+            '      "Checked": false,\n'
+            '      "Details": ""\n'
+            "    }\n"
+            "  },\n"
+            '  "Additional details/Special Instructions": "",\n'
+            '  "Attachment(s)": []\n'
+            "}\n\n"
+            "Email Content:\n"
+            f"{email_content}\n\n"
+            "Please provide the extracted information strictly in the JSON format as shown above."
+        )
+        try:
+            response = self.generate(prompt)
+            self.logger.debug(f"Raw LLM response: {response}")
+
+            # Clean the response by removing any code blocks or markdown
+            cleaned_response = self._clean_response(response)
+            self.logger.debug(f"Cleaned LLM response: {cleaned_response}")
+
+            # Parse the cleaned response as JSON
+            extracted_data = json.loads(cleaned_response)
+
+            # Validate the JSON against the schema
+            is_valid, error_message = validate_json(extracted_data)
+            if not is_valid:
+                self.logger.error(f"JSON Schema Validation Error: {error_message}")
+                raise ValueError(f"JSON Schema Validation Error: {error_message}")
+
+            self.logger.info(
+                "Successfully parsed and validated email using LocalLLMParser."
+            )
+            return extracted_data
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Failed to parse JSON from Local LLM response: {str(e)}")
+            self.logger.error(f"Response Text: ```\n{response}\n```")
+            raise ValueError(
+                "The Local LLM did not return valid JSON. Please check the response and adjust the prompt if necessary."
+            ) from e
+        except Exception as e:
+            self.logger.error(f"Error during Local LLM parsing: {str(e)}")
+            raise
+
+    def generate(self, prompt: str) -> str:
+        """
+        Generate text using the local LLM via LLM Studio's API.
+
+        Args:
+            prompt (str): The prompt to send to the LLM.
+
+        Returns:
+            str: The generated text from the LLM.
+        """
+        payload = {
+            "prompt": prompt,
+            "max_tokens": 1500,  # Adjusted from 131072 to 1500 for practical limits
+            "temperature": 0.2,  # Lower temperature for deterministic output
+            "n": 1,  # Number of completions to generate
+            "stop": ["}"],  # Stop after the closing brace
+        }
+
+        retries = 3
+        backoff_factor = 2
+
+        for attempt in range(1, retries + 1):
+            try:
+                self.logger.info("Sending request to Local LLM API.")
+                response = requests.post(
+                    self.api_endpoint, headers=self.headers, json=payload, timeout=60
+                )  # Reduced timeout
+
+                if response.status_code != 200:
+                    self.logger.error(
+                        f"LLM API responded with status code {response.status_code}: {response.text}"
+                    )
+                    raise ConnectionError(
+                        f"LLM API error: {response.status_code} - {response.text}"
+                    )
+
+                response_json = response.json()
+
+                # Adjust based on LLM Studio's API response structure
+                # Assuming LLM Studio's API returns a similar structure to OpenAI's
+                generated_text = (
+                    response_json.get("choices", [{}])[0].get("text", "").strip()
+                )
+                if not generated_text:
+                    self.logger.error("LLM API returned empty response.")
+                    raise ValueError("LLM API returned empty response.")
+
+                self.logger.info("Received response from Local LLM API.")
+                return generated_text
+            except (RequestException, ConnectionError) as e:
+                self.logger.error(
+                    f"Attempt {attempt} - HTTP request to LLM API failed: {str(e)}"
+                )
+                if attempt < retries:
+                    sleep_time = backoff_factor**attempt
+                    self.logger.info(f"Retrying in {sleep_time} seconds...")
+                    time.sleep(sleep_time)
+                else:
+                    self.logger.error("Max retries exceeded.")
+                    raise
+            except json.JSONDecodeError as e:
+                self.logger.error(
+                    f"Failed to decode JSON from LLM API response: {str(e)}"
+                )
+                raise ValueError("Invalid JSON response from LLM API.") from e
+
+    def _clean_response(self, response: str) -> str:
+        """
+        Cleans the LLM response by removing markdown code blocks and any extraneous text.
+
+        Args:
+            response (str): The raw response from the LLM.
+
+        Returns:
+            str: Cleaned JSON string.
+        """
+        # Remove markdown code blocks if present
+        response = re.sub(r'```(?:json)?\s*', '', response)
+        # Remove any trailing or leading whitespace
+        response = response.strip()
+
+        # Extract the JSON part using regex
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            response = json_match.group(0)
+        else:
+            self.logger.warning("No JSON object found in the LLM response.")
+            # Optionally, raise an error or handle it accordingly
+            raise ValueError("No JSON object found in the LLM response.")
+
+        # Ensure that the JSON string ends properly
+        if not response.endswith('}'):
+            response += '}'
+
+        return response
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\parsers\rule_based_parser.py ###
+
+# src/parsers/rule_based_parser.py
+
+import logging
+import re
+import spacy
+from src.parsers.base_parser import BaseParser
+from src.parsers.local_llm_parser import (
+    validate_json,
+)  # Assuming validate_json is accessible
+import jsonschema
+from jsonschema import validate
+from datetime import datetime
+import yaml
+import os
+
+
+class RuleBasedParser(BaseParser):
+    """An improved and enhanced rule-based parser for comprehensive email parsing."""
+
+    def __init__(self, config_path: str = None):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+            self.logger.info("spaCy model loaded successfully.")
+        except Exception as e:
+            self.logger.error(f"Failed to load spaCy model: {e}")
+            raise
+
+        # Load configuration for patterns if provided
+        if config_path and os.path.exists(config_path):
+            with open(config_path, "r") as file:
+                config = yaml.safe_load(file)
+            self.logger.info(f"Loaded parser configuration from {config_path}.")
+        else:
+            # Default configuration
+            config = self.default_config()
+            self.logger.info("Loaded default parser configuration.")
+
+        # Precompile regular expressions for performance
+        self.section_headers = config["section_headers"]
+        self.section_pattern = re.compile(
+            rf'^({"|".join(map(re.escape, self.section_headers))}):?\s*$', re.IGNORECASE
+        )
+
+        # Define patterns for each section
+        self.patterns = {}
+        for section, fields in config["patterns"].items():
+            self.patterns[section] = {}
+            for field, pattern in fields.items():
+                self.patterns[section][field] = re.compile(
+                    pattern, re.IGNORECASE | re.DOTALL
+                )
+
+        # Additional patterns for common edge cases
+        self.additional_patterns = {}
+        for section, fields in config.get("additional_patterns", {}).items():
+            self.additional_patterns[section] = {}
+            for field, pattern in fields.items():
+                self.additional_patterns[section][field] = re.compile(
+                    pattern, re.IGNORECASE | re.DOTALL
+                )
+
+        # Load date formats and boolean values from config if available
+        self.date_formats = config.get(
+            "date_formats",
+            [
+                "%m/%d/%Y",
+                "%m-%d-%Y",
+                "%d/%m/%Y",
+                "%d-%m-%Y",
+                "%Y-%m-%d",
+                "%Y/%m/%d",
+            ],
+        )
+        self.boolean_values = config.get(
+            "boolean_values",
+            {
+                "positive": [
+                    "yes",
+                    "y",
+                    "true",
+                    "t",
+                    "1",
+                    "x",
+                    "[x]",
+                    "[X]",
+                    "(x)",
+                    "(X)",
+                ],
+                "negative": [
+                    "no",
+                    "n",
+                    "false",
+                    "f",
+                    "0",
+                    "[ ]",
+                    "()",
+                    "[N/A]",
+                    "(N/A)",
+                ],
+            },
+        )
+
+    def default_config(self):
+        """Provides the default configuration for the parser."""
+        return {
+            "section_headers": [
+                "Requesting Party",
+                "Insured Information",
+                "Adjuster Information",
+                "Assignment Information",
+                "Assignment Type",
+                "Additional details/Special Instructions",
+                "Attachment(s)",
+            ],
+            "patterns": {
+                "Requesting Party": {
+                    "Insurance Company": r"Insurance Company\s*:\s*(.*)",
+                    "Handler": r"Handler\s*:\s*(.*)",
+                    "Carrier Claim Number": r"Carrier Claim Number\s*:\s*(.*)",
+                },
+                "Insured Information": {
+                    "Name": r"Name\s*:\s*(.*)",
+                    "Contact #": r"Contact #\s*:\s*(.*)",
+                    "Loss Address": r"Loss Address\s*:\s*(.*)",
+                    "Public Adjuster": r"Public Adjuster\s*:\s*(.*)",
+                    "Owner or Tenant": r"Is the insured an Owner or a Tenant of the loss location\?\s*(Yes|No|Owner|Tenant)",
+                },
+                "Adjuster Information": {
+                    "Adjuster Name": r"Adjuster Name\s*:\s*(.*)",
+                    "Adjuster Phone Number": r"Adjuster Phone Number\s*:\s*(\+?\d[\d\s\-().]{7,}\d)",
+                    "Adjuster Email": r"Adjuster Email\s*:\s*([\w\.-]+@[\w\.-]+\.\w+)",
+                    "Job Title": r"Job Title\s*:\s*(.*)",
+                    "Address": r"Address\s*:\s*(.*)",
+                    "Policy #": r"Policy #\s*:\s*(\w+)",
+                },
+                "Assignment Information": {
+                    "Date of Loss/Occurrence": r"Date of Loss/Occurrence\s*:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+                    "Cause of loss": r"Cause of loss\s*:\s*(.*)",
+                    "Facts of Loss": r"Facts of Loss\s*:\s*(.*)",
+                    "Loss Description": r"Loss Description\s*:\s*(.*)",
+                    "Residence Occupied During Loss": r"Residence Occupied During Loss\s*:\s*(Yes|No)",
+                    "Was Someone home at time of damage": r"Was Someone home at time of damage\s*:\s*(Yes|No)",
+                    "Repair or Mitigation Progress": r"Repair or Mitigation Progress\s*:\s*(.*)",
+                    "Type": r"Type\s*:\s*(.*)",
+                    "Inspection type": r"Inspection type\s*:\s*(.*)",
+                },
+                "Assignment Type": {
+                    "Wind": r"Wind\s*\[\s*([xX])\s*\]",
+                    "Structural": r"Structural\s*\[\s*([xX])\s*\]",
+                    "Hail": r"Hail\s*\[\s*([xX])\s*\]",
+                    "Foundation": r"Foundation\s*\[\s*([xX])\s*\]",
+                    "Other": r"Other\s*\[\s*([xX])\s*\]\s*-\s*provide details\s*:\s*(.*)",
+                },
+                "Additional details/Special Instructions": {
+                    "Additional details/Special Instructions": r"Additional details/Special Instructions\s*:\s*(.*)"
+                },
+                "Attachment(s)": {"Attachment(s)": r"Attachment\(s\)\s*:\s*(.*)"},
+            },
+            "additional_patterns": {
+                "Requesting Party": {
+                    "Policy #": r"Policy\s*Number\s*:\s*(\w+)",
+                    "Carrier Claim Number": r"Claim\s*Number\s*:\s*(.*)",
+                },
+                "Assignment Information": {
+                    "Date of Loss/Occurrence": r"Date of Loss(?:/Occurrence)?\s*:\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"
+                },
+            },
+            "date_formats": [
+                "%m/%d/%Y",
+                "%d/%m/%Y",
+                "%Y-%m-%d",
+                "%B %d, %Y",
+                "%b %d, %Y",
+                "%d %B %Y",
+                "%d %b %Y",
+                "%Y/%m/%d",
+                "%d-%m-%Y",
+                "%Y.%m.%d",
+                "%d.%m.%Y",
+                "%m-%d-%Y",
+                "%Y%m%d",
+                "%B %-d, %Y",  # For systems supporting '-' flag
+                "%b %-d, %Y",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%fZ",
+            ],
+            "boolean_values": {
+                "positive": [
+                    "yes",
+                    "y",
+                    "true",
+                    "t",
+                    "1",
+                    "x",
+                    "[x]",
+                    "[X]",
+                    "(x)",
+                    "(X)",
+                ],
+                "negative": [
+                    "no",
+                    "n",
+                    "false",
+                    "f",
+                    "0",
+                    "[ ]",
+                    "()",
+                    "[N/A]",
+                    "(N/A)",
+                ],
+            },
+        }
+
+    def parse(self, email_content: str):
+        """
+        Parses the email content using regular expressions and NLP techniques to extract key information.
+
+        Args:
+            email_content (str): The raw email content to parse.
+
+        Returns:
+            dict: Parsed data as a dictionary.
+        """
+        self.logger.info("Parsing email content with RuleBasedParser.")
+        extracted_data = {}
+
+        # Extract sections based on the assignment schema
+        sections = self.split_into_sections(email_content)
+
+        # Extract data from each section
+        for section, content in sections.items():
+            extract_method = getattr(self, f"extract_{self.snake_case(section)}", None)
+            if extract_method:
+                try:
+                    data = extract_method(content)
+                    extracted_data.update(data)
+                except Exception as e:
+                    self.logger.error(f"Error extracting section '{section}': {e}")
+                    extracted_data.update(self.default_section_data(section))
+            else:
+                self.logger.warning(
+                    f"No extraction method found for section: {section}"
+                )
+                if section == "Additional details/Special Instructions":
+                    extracted_data.update(self.default_section_data(section))
+
+                # Ensure 'Additional details/Special Instructions' is always present
+                if "Additional details/Special Instructions" not in extracted_data:
+                    extracted_data.update(
+                        self.default_section_data(
+                            "Additional details/Special Instructions"
+                        )
+                    )
+
+                    # Extract entities using NLP
+                    entities = self.extract_entities(email_content)
+                    extracted_data["Entities"] = entities
+
+                    # Validate the extracted data against the JSON schema
+                    is_valid, error_message = validate_json(extracted_data)
+                    if not is_valid:
+                        self.logger.error(
+                            f"JSON Schema Validation Error: {error_message}"
+                        )
+                        raise ValueError(
+                            f"JSON Schema Validation Error: {error_message}"
+                        )
+
+                    self.logger.debug(f"Extracted Data: {extracted_data}")
+                    self.logger.info("Successfully parsed email with RuleBasedParser.")
+                    return extracted_data
+
+    def snake_case(self, text: str) -> str:
+        """Converts text to snake_case by removing non-word characters and replacing spaces with underscores."""
+        # Remove non-word characters except spaces
+        text = re.sub(r"[^\w\s]", "", text)
+        # Replace one or more whitespace with single underscore
+        return re.sub(r"\s+", "_", text.strip().lower())
+
+    def split_into_sections(self, email_content: str):
+        """
+        Splits the email content into sections based on the assignment schema headers.
+
+        Args:
+            email_content (str): The raw email content.
+
+        Returns:
+            dict: Sections of the email mapped to their content.
+        """
+        self.logger.debug("Splitting email content into sections.")
+        sections = {}
+        current_section = None
+        content_buffer = []
+
+        lines = email_content.splitlines()
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue  # Skip empty lines
+
+            header_match = self.section_pattern.match(line)
+            if header_match:
+                if current_section:
+                    sections[current_section] = "\n".join(content_buffer).strip()
+                    content_buffer = []
+                current_section = header_match.group(1)
+                sections[current_section] = ""
+                self.logger.debug(f"Detected section header: {current_section}")
+            elif current_section:
+                content_buffer.append(line)
+
+        # Add the last section
+        if current_section and content_buffer:
+            sections[current_section] = "\n".join(content_buffer).strip()
+
+        # Handle additional patterns for missing sections
+        for section in self.section_headers:
+            if section not in sections:
+                self.logger.warning(f"Section '{section}' not found in email content.")
+                sections[section] = ""
+
+        self.logger.debug(f"Sections Found: {list(sections.keys())}")
+        return sections
+
+    def default_section_data(self, section: str) -> dict:
+        """
+        Provides default data structure for missing sections.
+
+        Args:
+            section (str): The name of the section.
+
+        Returns:
+            dict: Default data for the section.
+        """
+        default_data = {}
+        if section == "Requesting Party":
+            default_data["Requesting Party"] = {
+                "Insurance Company": "N/A",
+                "Handler": "N/A",
+                "Carrier Claim Number": "N/A",
+            }
+        elif section == "Insured Information":
+            default_data["Insured Information"] = {
+                "Name": "N/A",
+                "Contact #": "N/A",
+                "Loss Address": "N/A",
+                "Public Adjuster": "N/A",
+                "Owner or Tenant": "N/A",
+            }
+        elif section == "Adjuster Information":
+            default_data["Adjuster Information"] = {
+                "Adjuster Name": "N/A",
+                "Adjuster Phone Number": "N/A",
+                "Adjuster Email": "N/A",
+                "Job Title": "N/A",
+                "Address": "N/A",
+                "Policy #": "N/A",
+            }
+        elif section == "Assignment Information":
+            default_data["Assignment Information"] = {
+                "Date of Loss/Occurrence": "N/A",
+                "Cause of loss": "N/A",
+                "Facts of Loss": "N/A",
+                "Loss Description": "N/A",
+                "Residence Occupied During Loss": "N/A",
+                "Was Someone home at time of damage": "N/A",
+                "Repair or Mitigation Progress": "N/A",
+                "Type": "N/A",
+                "Inspection type": "N/A",
+            }
+        elif section == "Assignment Type":
+            default_data["Assignment Type"] = {
+                "Wind": False,
+                "Structural": False,
+                "Hail": False,
+                "Foundation": False,
+                "Other": {"Checked": False, "Details": "N/A"},
+            }
+        elif section == "Additional details/Special Instructions":
+            default_data["Additional details/Special Instructions"] = "N/A"
+        elif section == "Attachment(s)":
+            default_data["Attachment(s)"] = "N/A"
+        return default_data
+
+    def extract_requesting_party(self, text: str):
+        """
+        Extracts data from the 'Requesting Party' section.
+
+        Args:
+            text (str): Content of the 'Requesting Party' section.
+
+        Returns:
+            dict: Extracted 'Requesting Party' data.
+        """
+        self.logger.debug("Extracting Requesting Party information.")
+        data = {}
+        for key, pattern in self.patterns["Requesting Party"].items():
+            match = pattern.search(text)
+            if match:
+                value = match.group(1).strip()
+                # Handle alternative patterns
+                if not value and key in self.additional_patterns.get(
+                    "Requesting Party", {}
+                ):
+                    alt_pattern = self.additional_patterns["Requesting Party"][key]
+                    alt_match = alt_pattern.search(text)
+                    value = alt_match.group(1).strip() if alt_match else "N/A"
+                data[key] = value if value else "N/A"
+                self.logger.debug(f"Found {key}: {value}")
+            else:
+                # Attempt to find using additional patterns if applicable
+                if key in self.additional_patterns.get("Requesting Party", {}):
+                    alt_pattern = self.additional_patterns["Requesting Party"][key]
+                    alt_match = alt_pattern.search(text)
+                    value = alt_match.group(1).strip() if alt_match else "N/A"
+                    data[key] = value if value else "N/A"
+                    if value != "N/A":
+                        self.logger.debug(
+                            f"Found {key} using additional pattern: {value}"
+                        )
+                    else:
+                        self.logger.debug(f"{key} not found, set to 'N/A'")
+                else:
+                    data[key] = "N/A"
+                    self.logger.debug(f"{key} not found, set to 'N/A'")
+        return {"Requesting Party": data}
+
+    def extract_insured_information(self, text: str):
+        """
+        Extracts data from the 'Insured Information' section.
+
+        Args:
+            text (str): Content of the 'Insured Information' section.
+
+        Returns:
+            dict: Extracted 'Insured Information' data.
+        """
+        self.logger.debug("Extracting Insured Information.")
+        data = {}
+        for key, pattern in self.patterns["Insured Information"].items():
+            match = pattern.search(text)
+            if match:
+                value = match.group(1).strip()
+                if key == "Owner or Tenant":
+                    value = (
+                        value.capitalize()
+                        if value.lower() in ["yes", "no", "owner", "tenant"]
+                        else "N/A"
+                    )
+                data[key] = value if value else "N/A"
+                self.logger.debug(f"Found {key}: {value}")
+            else:
+                # Attempt to find using additional patterns if applicable
+                if key in self.additional_patterns.get("Insured Information", {}):
+                    alt_pattern = self.additional_patterns["Insured Information"][key]
+                    alt_match = alt_pattern.search(text)
+                    value = alt_match.group(1).strip() if alt_match else "N/A"
+                    data[key] = value if value else "N/A"
+                    if value != "N/A":
+                        self.logger.debug(
+                            f"Found {key} using additional pattern: {value}"
+                        )
+                    else:
+                        self.logger.debug(f"{key} not found, set to 'N/A'")
+                else:
+                    data[key] = "N/A"
+                    self.logger.debug(f"{key} not found, set to 'N/A'")
+        return {"Insured Information": data}
+
+    def extract_adjuster_information(self, text: str):
+        """
+        Extracts data from the 'Adjuster Information' section.
+
+        Args:
+            text (str): Content of the 'Adjuster Information' section.
+
+        Returns:
+            dict: Extracted 'Adjuster Information' data.
+        """
+        self.logger.debug("Extracting Adjuster Information.")
+        data = {}
+        for key, pattern in self.patterns["Adjuster Information"].items():
+            match = pattern.search(text)
+            if match:
+                value = match.group(1).strip()
+                # Specific handling for phone numbers and emails
+                if key == "Adjuster Phone Number":
+                    value = self.format_phone_number(value)
+                elif key == "Adjuster Email":
+                    value = value.lower()
+                data[key] = value if value else "N/A"
+                self.logger.debug(f"Found {key}: {value}")
+            else:
+                # Attempt to find using additional patterns if applicable
+                if key in self.additional_patterns.get("Adjuster Information", {}):
+                    alt_pattern = self.additional_patterns["Adjuster Information"][key]
+                    alt_match = alt_pattern.search(text)
+                    value = alt_match.group(1).strip() if alt_match else "N/A"
+                    data[key] = value if value else "N/A"
+                    if value != "N/A":
+                        self.logger.debug(
+                            f"Found {key} using additional pattern: {value}"
+                        )
+                    else:
+                        self.logger.debug(f"{key} not found, set to 'N/A'")
+                else:
+                    data[key] = "N/A"
+                    self.logger.debug(f"{key} not found, set to 'N/A'")
+        return {"Adjuster Information": data}
+
+    def format_phone_number(self, phone: str) -> str:
+        """
+        Formats the phone number to a standard format.
+
+        Args:
+            phone (str): Raw phone number.
+
+        Returns:
+            str: Formatted phone number.
+        """
+        digits = re.sub(r"\D", "", phone)
+        if len(digits) == 10:
+            return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+        elif len(digits) == 11 and digits.startswith("1"):
+            return f"+1 ({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
+        else:
+            self.logger.warning(f"Unexpected phone number format: {phone}")
+            return phone  # Return as is if format is unexpected
+
+    def extract_assignment_information(self, text: str):
+        """
+        Extracts data from the 'Assignment Information' section.
+
+        Args:
+            text (str): Content of the 'Assignment Information' section.
+
+        Returns:
+            dict: Extracted 'Assignment Information' data.
+        """
+        self.logger.debug("Extracting Assignment Information.")
+        data = {}
+        for key, pattern in self.patterns["Assignment Information"].items():
+            match = pattern.search(text)
+            if match:
+                value = match.group(1).strip()
+                # Specific handling for dates
+                if key == "Date of Loss/Occurrence":
+                    value = self.parse_date(value)
+                elif key in [
+                    "Residence Occupied During Loss",
+                    "Was Someone home at time of damage",
+                ]:
+                    value = (
+                        value.capitalize() if value.lower() in ["yes", "no"] else "N/A"
+                    )
+                data[key] = value if value else "N/A"
+                self.logger.debug(f"Found {key}: {value}")
+            else:
+                # Attempt to find using additional patterns if applicable
+                if key in self.additional_patterns.get("Assignment Information", {}):
+                    alt_pattern = self.additional_patterns["Assignment Information"][
+                        key
+                    ]
+                    alt_match = alt_pattern.search(text)
+                    value = alt_match.group(1).strip() if alt_match else "N/A"
+                    if value:
+                        if key == "Date of Loss/Occurrence":
+                            value = self.parse_date(value)
+                        elif key in [
+                            "Residence Occupied During Loss",
+                            "Was Someone home at time of damage",
+                        ]:
+                            value = (
+                                value.capitalize()
+                                if value.lower() in ["yes", "no"]
+                                else "N/A"
+                            )
+                        data[key] = value
+                        self.logger.debug(
+                            f"Found {key} using additional pattern: {value}"
+                        )
+                    else:
+                        data[key] = "N/A"
+                        self.logger.debug(
+                            f"{key} not found using additional pattern, set to 'N/A'"
+                        )
+                else:
+                    data[key] = "N/A"
+                    self.logger.debug(f"{key} not found, set to 'N/A'")
+        return {"Assignment Information": data}
+
+    def parse_date(self, date_str: str) -> str:
+        """
+        Parses and standardizes date formats.
+
+        Args:
+            date_str (str): Raw date string.
+
+        Returns:
+            str: Standardized date in YYYY-MM-DD format or original string if parsing fails.
+        """
+        for fmt in self.date_formats:
+            try:
+                date_obj = datetime.strptime(date_str, fmt)
+                standardized_date = date_obj.strftime("%Y-%m-%d")
+                self.logger.debug(
+                    f"Parsed date '{date_str}' as '{standardized_date}' using format '{fmt}'."
+                )
+                return standardized_date
+            except ValueError:
+                continue
+        self.logger.warning(f"Unable to parse date: {date_str}")
+        return date_str  # Return as is if parsing fails
+
+    def extract_assignment_type(self, text: str):
+        """
+        Extracts the assignment type by checking the corresponding boxes.
+
+        Args:
+            text (str): Content of the 'Assignment Type' section.
+
+        Returns:
+            dict: Extracted 'Assignment Type' data.
+        """
+        self.logger.debug("Extracting Assignment Type.")
+        data = {
+            "Wind": False,
+            "Structural": False,
+            "Hail": False,
+            "Foundation": False,
+            "Other": {"Checked": False, "Details": "N/A"},
+        }
+
+        for key, pattern in self.patterns["Assignment Type"].items():
+            match = pattern.search(text)
+            if key != "Other":
+                if match:
+                    data[key] = True
+                    self.logger.debug(f"Assignment Type '{key}' checked.")
+            else:
+                if match:
+                    data["Other"]["Checked"] = True
+                    details = match.group(2).strip() if match.lastindex >= 2 else "N/A"
+                    data["Other"]["Details"] = details if details else "N/A"
+                    self.logger.debug(
+                        f"Assignment Type 'Other' checked with details: {details}"
+                    )
+        return {"Assignment Type": data}
+
+    def extract_additional_details_special_instructions(self, text: str):
+        """
+        Extracts additional details or special instructions.
+
+        Args:
+            text (str): Content of the 'Additional details/Special Instructions' section.
+
+        Returns:
+            dict: Extracted additional details.
+        """
+        self.logger.debug("Extracting Additional Details/Special Instructions.")
+        data = {}
+        pattern = self.patterns["Additional details/Special Instructions"][
+            "Additional details/Special Instructions"
+        ]
+        match = pattern.search(text)
+        if match:
+            value = match.group(1).strip()
+            data["Additional details/Special Instructions"] = value if value else "N/A"
+            self.logger.debug(f"Found Additional details/Special Instructions: {value}")
+        else:
+            data["Additional details/Special Instructions"] = "N/A"
+            self.logger.debug(
+                "Additional details/Special Instructions not found, set to 'N/A'"
+            )
+        return data
+
+    def extract_attachments(self, text: str):
+        """
+        Extracts attachment information.
+
+        Args:
+            text (str): Content of the 'Attachment(s)' section.
+
+        Returns:
+            dict: Extracted attachment details.
+        """
+        self.logger.debug("Extracting Attachment(s).")
+        data = {}
+        pattern = self.patterns["Attachment(s)"]["Attachment(s)"]
+        match = pattern.search(text)
+        if match:
+            attachments = match.group(1).strip()
+            if attachments.lower() != "n/a" and attachments:
+                # Split by multiple delimiters
+                attachment_list = re.split(r",|;|\n|•|–|-", attachments)
+                # Further filter and validate attachment entries
+                attachment_list = [
+                    att.strip()
+                    for att in attachment_list
+                    if att.strip()
+                    and (
+                        self.is_valid_attachment(att.strip())
+                        or self.is_valid_url(att.strip())
+                    )
+                ]
+                data["Attachment(s)"] = attachment_list if attachment_list else "N/A"
+                self.logger.debug(f"Found Attachments: {attachment_list}")
+            else:
+                data["Attachment(s)"] = "N/A"
+                self.logger.debug("Attachments marked as 'N/A' or empty.")
+        else:
+            data["Attachment(s)"] = "N/A"
+            self.logger.debug("Attachment(s) not found, set to 'N/A'")
+        return data
+
+    def is_valid_attachment(self, attachment: str) -> bool:
+        # Simple validation for file extensions
+        valid_extensions = [".pdf", ".docx", ".xlsx", ".zip", ".png", ".jpg"]
+        return any(attachment.lower().endswith(ext) for ext in valid_extensions)
+
+    def is_valid_url(self, attachment: str) -> bool:
+        # Simple URL validation
+        url_pattern = re.compile(
+            r"^(?:http|ftp)s?://"  # http:// or https://
+            r"(?:\S+(?::\S*)?@)?"  # user:pass@
+            r"(?:(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])\."  # IP...
+            r"(?:1?\d{1,2}|2[0-4]\d|25[0-5])\."
+            r"(?:1?\d{1,2}|2[0-4]\d|25[0-5])\."
+            r"(?:1?\d{1,2}|2[0-4]\d|25[0-5]))|"  # ...or
+            r"(?:(?:[a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))"  # domain...
+            r"(?::\d{2,5})?"  # optional port
+            r"(?:/\S*)?$",
+            re.IGNORECASE,
+        )
+        return re.match(url_pattern, attachment) is not None
+
+    def extract_entities(self, email_content: str):
+        """
+        Extracts named entities from the email content using spaCy.
+
+        Args:
+            email_content (str): The raw email content.
+
+        Returns:
+            dict: Extracted entities categorized by their labels.
+        """
+        self.logger.debug("Extracting Named Entities using spaCy.")
+        doc = self.nlp(email_content)
+        entities = {}
+        relevant_labels = {"PERSON", "ORG", "GPE", "DATE", "PRODUCT"}
+        for ent in doc.ents:
+            if ent.label_ in relevant_labels:
+                if ent.label_ not in entities:
+                    entities[ent.label_] = []
+                if ent.text not in entities[ent.label_]:
+                    entities[ent.label_].append(ent.text)
+        self.logger.debug(f"Extracted Entities: {entities}")
+        return entities
+
+    def enhance_logging(self):
+        """
+        Enhances logging by setting up structured logging and log levels.
+        """
+        # This method can be expanded to configure structured logging if needed
+        pass
+
+    def fallback_to_llm_parser(self, email_content: str):
+        """
+        Fallback mechanism to use LocalLLMParser if rule-based parsing fails.
+
+        Args:
+            email_content (str): The raw email content.
+
+        Returns:
+            dict: Parsed data from LocalLLMParser.
+        """
+        from src.parsers.local_llm_parser import LocalLLMParser
+
+        self.logger.info("Falling back to LocalLLMParser for parsing.")
+        llm_parser = LocalLLMParser()
+        return llm_parser.parse(email_content)
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\tools\totext.py ###
+
+import os
+import sys
+import argparse
+
+# Function to list files based on extensions and ignore specific files
+def list_files(root_dir, extensions=None, ignore_files=None, ignore_dirs=None):
+    """List all files in the root directory with the specified extensions, ignoring specific files and directories."""
+    files_to_include = []
+    for foldername, subfolders, filenames in os.walk(root_dir):
+        # Skip ignored directories
+        if ignore_dirs and any(
+            os.path.normpath(ignored_dir) in os.path.normpath(foldername) for ignored_dir in ignore_dirs
+        ):
+            continue
+
+        for filename in filenames:
+            # Skip ignored files
+            if ignore_files and filename in ignore_files:
+                continue
+            if extensions:
+                if any(filename.endswith(ext) for ext in extensions):
+                    file_path = os.path.join(foldername, filename)
+                    files_to_include.append(file_path)
+            else:
+                file_path = os.path.join(foldername, filename)
+                files_to_include.append(file_path)
+    return files_to_include
+
+# Filter based on back-end or front-end
+def filter_by_service(files_list, service_type):
+    """Filter files by back-end or front-end services."""
+    if service_type == "Back-End":
+        return [f for f in files_list if "backend" in f.lower()]
+    elif service_type == "Front-End":
+        return [f for f in files_list if "frontend" in f.lower()]
+    return files_list
+
+# Save selected files' content into a text file
+def save_code_to_text(files_list, output_file):
+    """Save the selected files' content into a text file."""
+    with open(output_file, "w", encoding="utf-8") as f_out:
+        for file_path in files_list:
+            f_out.write(f"### File: {file_path} ###\n\n")  # Add header with filename
+            try:
+                with open(file_path, "r", encoding="utf-8") as f_in:
+                    f_out.write(f_in.read())  # Write file content
+            except Exception as e:
+                f_out.write(f"Could not read file {file_path}: {e}")
+            f_out.write("\n\n" + "#" * 40 + "\n\n")  # Add a separator between files
+
+def main():
+    # Configure root directory and output file
+    root_directory = r"C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo"  # Update this path if needed
+    output_file = r"tools\codebase.txt"  # Output file for LLM input
+
+    extensions = [
+        ".py",
+        ".js",
+        ".html",
+        ".css",
+        ".txt",
+    ]  # Add any other file extensions you want to include
+
+    # Define files and directories to ignore
+    ignore_files = [
+        "__init__.py",
+        "README.md",
+        "LICENSE",
+    ]
+    ignore_dirs = [
+        ".git",
+        "__pycache__",
+        "node_modules",
+        ".venv",
+        ".idea",
+    ]
+
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Process code files for LLM input.')
+    parser.add_argument('--all', action='store_true', help='Include all files.')
+    parser.add_argument('--python', action='store_true', help='Include all Python files.')
+    parser.add_argument('--folder', type=str, help='Filter by folder relative to root directory.')
+    parser.add_argument('--backend', action='store_true', help='Include back-end files.')
+    parser.add_argument('--frontend', action='store_true', help='Include front-end files.')
+    parser.add_argument('--files', nargs='*', help='Specific files to include (relative to root directory).')
+    args = parser.parse_args()
+
+    # List all files in the directory, filtering out ignored files and directories
+    all_files_list = list_files(root_directory, extensions, ignore_files, ignore_dirs)
+
+    selected_files = set()
+
+    if args.all:
+        selected_files.update(all_files_list)
+    if args.python:
+        selected_files.update(f for f in all_files_list if f.endswith(".py"))
+    if args.folder:
+        folder_path = os.path.join(root_directory, args.folder)
+        selected_files.update(f for f in all_files_list if os.path.commonpath([folder_path, f]) == folder_path)
+    if args.backend:
+        selected_files.update(filter_by_service(all_files_list, "Back-End"))
+    if args.frontend:
+        selected_files.update(filter_by_service(all_files_list, "Front-End"))
+    if args.files:
+        # Assume files are specified relative to root_directory
+        selected_files.update(os.path.join(root_directory, f) for f in args.files)
+
+    if not selected_files:
+        print("No files selected. Exiting...")
+        exit()
+
+    selected_files = list(selected_files)
+
+    # Save and display the selected files
+    save_code_to_text(selected_files, output_file)
+    print(f"Code saved to {output_file}")
+    print("\nDisplaying full code content:\n")
+    for file in selected_files:
+        print(f"### File: {file} ###\n")
+        try:
+            with open(file, "r", encoding="utf-8") as f:
+                print(f.read())
+        except Exception as e:
+            print(f"Could not read file {file}: {e}")
+        print("\n" + "#" * 40 + "\n")
+
+if __name__ == "__main__":
+    main()
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\utils\config.py ###
+
+# src/utils/config.py
+
+import os
+
+class Config:
+    """Configuration settings."""
+
+    # Local LLM Configuration
+    LOCAL_LLM_API_ENDPOINT = os.getenv('LOCAL_LLM_API_ENDPOINT')
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\parsers\parser_registry.py ###
+
+# src/parsers/parser_registry.py
+
+import logging
+from src.parsers.parser_options import ParserOption
+from src.parsers.rule_based_parser import RuleBasedParser
+from src.parsers.local_llm_parser import LocalLLMParser  
+from src.parsers.llm_parser import LLMParser  # Import LLMParser
+
+class ParserRegistry:
+    """Registry for managing parsers."""
+
+    _registry = {}
+    logger = logging.getLogger("ParserRegistry")
+
+    @classmethod
+    def register_parser(cls, option, parser_cls):
+        """
+        Register a parser with the given option.
+
+        Args:
+            option (ParserOption): The option to register the parser with.
+            parser_cls: The parser class to register.
+        """
+        if not isinstance(option, ParserOption):
+            cls.logger.error("Attempted to register parser with invalid option type: %s", option)
+            raise TypeError("Parser option must be an instance of ParserOption Enum.")
+        
+        cls._registry[option] = parser_cls
+        cls.logger.info("Registered parser '%s' for option '%s'.", parser_cls.__name__, option.value)
+
+    @classmethod
+    def get_parser(cls, option):
+        if not isinstance(option, ParserOption):
+            cls.logger.error("Attempted to get parser with invalid option type: %s", option)
+            raise TypeError("Parser option must be an instance of ParserOption Enum.")
+        
+        parser_cls = cls._registry.get(option)
+        if not parser_cls:
+            cls.logger.error("Parser not registered for option: %s", option)
+            raise ValueError(f"Parser not registered for option: {option.value}")
+        
+        cls.logger.info("Retrieving parser '%s' for option '%s'.", parser_cls.__name__, option.value)
+        return parser_cls()
+
+# Configure logging for ParserRegistry
+logging.basicConfig(level=logging.INFO)
+ParserRegistry.logger.setLevel(logging.INFO)
+
+# Register parsers after defining the ParserRegistry class
+ParserRegistry.register_parser(ParserOption.RULE_BASED, RuleBasedParser)
+ParserRegistry.register_parser(ParserOption.LOCAL_LLM, LocalLLMParser)
+ParserRegistry.register_parser(ParserOption.LLM, LLMParser)  # Register LLMParser
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\parsers\llm_parser.py ###
+
+# src/parsers/llm_parser.py
+import logging
+import os
+import json
+import openai
+
+
+class LLMParser:
+    """Parser that uses OpenAI's GPT-3 to parse email content."""
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        openai.api_key = os.getenv('OPENAI_API_KEY')
+        if not openai.api_key:
+            raise ValueError("OpenAI API key not found. Set the OPENAI_API_KEY environment variable.")
+
+    def parse(self, email_content: str):
+        self.logger.info("Parsing email content with LLMParser.")
+        prompt = f"Extract key information from the following email and provide it in JSON format:\n\n{email_content}"
+        try:
+            response = openai.Completion.create(
+                engine='text-davinci-003',
+                prompt=prompt,
+                max_tokens=500,
+                temperature=0.2,
+                n=1,
+                stop=None,
+            )
+            extracted_text = response.choices[0].text.strip()
+            # Try to parse the response as JSON
+            extracted_data = json.loads(extracted_text)
+            return extracted_data
+        except Exception as e:
+            self.logger.error(f"Error during LLM parsing: {str(e)}")
+            raise
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\parsers\parser_options.py ###
+
+# src/parsers/parser_options.py
+
+from enum import Enum
+
+class ParserOption(Enum):
+    """
+    Enumeration of available parser options.
+
+    Attributes:
+        RULE_BASED (str): Identifier for the rule-based parser.
+        LOCAL_LLM (str): Identifier for the local LLM parser.
+        LLM (str): Identifier for the OpenAI LLM parser.
+    """
+    RULE_BASED = 'rule_based'
+    LOCAL_LLM = 'local_llm'
+    LLM = 'llm'  
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\email_parsing.py ###
+
+# src/email_parsing.py
+
+import logging
+from src.parsers.parser_options import ParserOption
+from src.parsers.parser_registry import ParserRegistry
+
+class EmailParser:
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        if not self.logger.handlers:
+            self.logger.addHandler(handler)
+        self.logger.setLevel(logging.DEBUG)  # Set to DEBUG for detailed logs
+
+    def parse_email(self, email_content: str, parser_option: str):
+        try:
+            parser_option_enum = ParserOption(parser_option)
+        except ValueError:
+            self.logger.error(f"Unknown parser option: {parser_option}")
+            raise ValueError(f"Unknown parser option: {parser_option}")
+
+        self.logger.info(f"Parsing email using {parser_option_enum.value} parser.")
+        try:
+            parser = ParserRegistry.get_parser(parser_option_enum)
+            parsed_data = parser.parse(email_content)
+            self.logger.info(f"Successfully parsed email using {parser_option_enum.value} parser.")
+            return parsed_data
+        except Exception as e:
+            self.logger.error(f"Error while parsing email: {e}")
+            raise
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\parsers\parser_factory.py ###
+
+# src/parsers/parser_factory.py
+
+import logging
+from src.parsers.rule_based_parser import RuleBasedParser
+from src.parsers.llm_parser import LLMParser
+from src.parsers.local_llm_parser import LocalLLMParser
+
+class ParserFactory:
+    """Factory class to instantiate the appropriate parser."""
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def get_parser(self, parser_option: str):
+        """
+        Returns the parser based on the user's selection.
+        """
+        self.logger.info("Selecting parser based on user option: %s", parser_option)
+        if parser_option == 'rule_based':
+            parser = RuleBasedParser()
+        elif parser_option == 'llm':
+            parser = LLMParser()
+        elif parser_option == 'local_llm':
+            parser = LocalLLMParser()
+        else:
+            self.logger.error("Invalid parser option selected: %s", parser_option)
+            raise ValueError(f"Invalid parser option: {parser_option}")
+        return parser
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\parsers\base_parser.py ###
+
+#src\parsers\base_parser.py
+
+from abc import ABC, abstractmethod
+
+class BaseParser(ABC):
+    """Abstract base class for all parsers."""
+
+    @abstractmethod
+    def parse(self, email_content: str):
+        """
+        Parse the given email content.
+
+        Args:
+            email_content (str): The raw email content to parse.
+
+        Returns:
+            dict: Parsed data as a dictionary.
+        """
+        pass
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\src\utils\quickbase_schema.py ###
+
+# src/utils/quickbase_schema.py
+
+# Mapping of parsed data keys to QuickBase field IDs
+QUICKBASE_SCHEMA = {
+    "Requesting Party": {
+        "Insurance Company": "field_1",
+        "Handler": "field_2",
+        "Carrier Claim Number": "field_3"
+    },
+    "Insured Information": {
+        "Name": "field_4",
+        "Contact #": "field_5",
+        "Loss Address": "field_6",
+        "Public Adjuster": "field_7",
+        "Owner or Tenant": "field_8"
+    },
+    "Adjuster Information": {
+        "Adjuster Name": "field_9",
+        "Adjuster Phone Number": "field_10",
+        "Adjuster Email": "field_11",
+        "Job Title": "field_12",
+        "Address": "field_13",
+        "Policy #": "field_14"
+    },
+    "Assignment Information": {
+        "Date of Loss/Occurrence": "field_15",
+        "Cause of Loss": "field_16",
+        "Facts of Loss": "field_17",
+        "Loss Description": "field_18",
+        "Residence Occupied During Loss": "field_19",
+        "Was Someone Home at Time of Damage": "field_20",
+        "Repair or Mitigation Progress": "field_21",
+        "Type": "field_22",
+        "Inspection Type": "field_23",
+        "Assignment Type": "field_24",
+        "Additional Details/Special Instructions": "field_25",
+        "Attachments": "field_26"
+    }
+}
+
+
+########################################
+
+### File: C:\Users\jorda\OneDrive\Desktop\Code & Ai\email_parser_demo\app.py ###
+
+from flask import Flask, render_template, request, jsonify, send_file
+from src.email_parsing import EmailParser  # Ensure this path is correct
+from src.utils.quickbase_schema import QUICKBASE_SCHEMA
+import logging
+from dotenv import load_dotenv
+import os
+import json_log_formatter
+import pandas as pd
+import io
+
+# Load environment variables from .env
+load_dotenv()
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your_secret_key')  # Securely load secret key
+
+# Configure structured logging
+formatter = json_log_formatter.JSONFormatter()
+
+json_handler = logging.StreamHandler()
+json_handler.setFormatter(formatter)
+
+logger = logging.getLogger()
+logger.addHandler(json_handler)
+logger.setLevel(logging.DEBUG)  # Set to DEBUG to capture detailed logs
+
+@app.route('/', methods=['GET', 'POST'])
+def parse_email():
+    if request.method == 'POST':
+        accept_header = request.headers.get('Accept')
+        logger.debug(f"Accept header: {accept_header}")  # Added for debugging
+        email_content = request.form.get('email_content', '').strip()
+        selected_parser = request.form.get('parser_option', 'rule_based')
+        logger.debug(f"Received email_content: {email_content}")
+        logger.debug(f"Selected parser: {selected_parser}")
+        if email_content:
+            parser = EmailParser()
+            try:
+                parsed_data = parser.parse_email(email_content, selected_parser)
+                logger.info(f"Parsing successful using {selected_parser} parser.")
+                
+                # Convert parsed_data to CSV
+                csv_buffer = generate_csv(parsed_data)
+                csv_filename = "parsed_data.csv"
+
+                # If the request expects JSON, return JSON with a link to download CSV
+                if accept_header == 'application/json':
+                    # Encode CSV in base64 or provide a separate endpoint
+                    # Here, we'll provide a download link with a unique identifier
+                    # For simplicity, we'll generate CSV on the fly
+                    # In production, consider storing the CSV temporarily
+                    csv_bytes = csv_buffer.getvalue()
+                    # Encode CSV as base64 to include in JSON (not ideal for large files)
+                    import base64
+                    csv_base64 = base64.b64encode(csv_bytes).decode('utf-8')
+                    return jsonify({
+                        "parsed_data": parsed_data,
+                        "csv_data": csv_base64,
+                        "csv_filename": csv_filename
+                    }), 200
+                else:
+                    return render_template('index.html', parsed_data=parsed_data, selected_parser=selected_parser)
+            except ValueError as ve:
+                logger.error(f"Validation error during parsing: {str(ve)}")
+                error_message = f"Validation Error: {str(ve)}"
+                if accept_header == 'application/json':
+                    return jsonify({"error_message": error_message}), 400
+                else:
+                    return render_template('index.html', error_message=error_message, selected_parser=selected_parser)
+            except Exception as e:
+                logger.error(f"An unexpected error occurred during parsing: {str(e)}")
+                error_message = f"An unexpected error occurred: {str(e)}"
+                if accept_header == 'application/json':
+                    return jsonify({"error_message": error_message}), 500
+                else:
+                    return render_template('index.html', error_message=error_message, selected_parser=selected_parser)
+        else:
+            error_message = "Please enter email content to parse."
+            if accept_header == 'application/json':
+                return jsonify({"error_message": error_message}), 400
+            else:
+                return render_template('index.html', error_message=error_message, selected_parser=selected_parser)
+    else:
+        return render_template('index.html')
+
+def generate_csv(parsed_data):
+    """
+    Generate a CSV file from parsed_data based on QUICKBASE_SCHEMA.
+    """
+    data_flat = flatten_parsed_data(parsed_data)
+    # Map the parsed data to QuickBase field IDs
+    csv_data = {}
+    for section, fields in QUICKBASE_SCHEMA.items():
+        for field_name, field_id in fields.items():
+            key = f"{section}.{field_name}"
+            value = data_flat.get(key, 'N/A')
+            csv_data[field_id] = value
+    
+    # Create a DataFrame
+    df = pd.DataFrame([csv_data])
+    csv_buffer = io.StringIO()
+    df.to_csv(csv_buffer, index=False)
+    csv_buffer.seek(0)
+    return csv_buffer
+
+def flatten_parsed_data(parsed_data, parent_key='', sep='.'):
+    """
+    Flatten nested dictionaries.
+    """
+    items = {}
+    for k, v in parsed_data.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.update(flatten_parsed_data(v, new_key, sep=sep))
+        else:
+            items[new_key] = v
+    return items
+
+@app.route('/download_csv', methods=['POST'])
+def download_csv():
+    """
+    Endpoint to download CSV from base64 encoded data.
+    Expects JSON with 'csv_data' and 'csv_filename'.
+    """
+    data = request.get_json()
+    csv_base64 = data.get('csv_data')
+    csv_filename = data.get('csv_filename', 'parsed_data.csv')
+    if not csv_base64:
+        return jsonify({"error_message": "No CSV data provided."}), 400
+    try:
+        csv_bytes = base64.b64decode(csv_base64)
+        return send_file(
+            io.BytesIO(csv_bytes),
+            mimetype='text/csv',
+            as_attachment=True,
+            attachment_filename=csv_filename
+        )
+    except Exception as e:
+        logger.error(f"Error decoding CSV data: {str(e)}")
+        return jsonify({"error_message": "Failed to decode CSV data."}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+########################################
+

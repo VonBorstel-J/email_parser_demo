@@ -1,5 +1,7 @@
 # src/parsers/local_llm_parser.py
 
+# src/parsers/local_llm_parser.py
+
 import logging
 import json
 import re
@@ -9,9 +11,10 @@ import time
 from requests.exceptions import RequestException
 from src.parsers.base_parser import BaseParser
 from dotenv import load_dotenv
+from src.utils.validation import validate_json  
 import jsonschema
-from jsonschema import validate
 import validators  # New dependency for URL validation
+
 
 # Load environment variables from .env
 load_dotenv()

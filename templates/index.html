@@ -1,416 +1,427 @@
-<!-- need to update this with input and output sizing and change how output is structured when its done-->
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Email Parser Demo</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
-  <style>
-    :root {
-      --primary-color: #4f46e5;
-      --primary-hover: #4338ca;
-      --secondary-color: #6366f1;
-      --background-color: #f5f7ff;
-      --card-background: #ffffff;
-      --text-color: #1f2937;
-      --border-color: #e5e7eb;
-      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    }
-
-    body {
-      background-color: var(--background-color);
-      color: var(--text-color);
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      padding-bottom: 80px;
-      min-height: 100vh;
-      transition: all 0.3s ease;
-    }
-
-    .navbar {
-      background-color: var(--card-background);
-      box-shadow: var(--shadow);
-      padding: 1rem 0;
-    }
-
-    .navbar-brand {
-      color: var(--primary-color) !important;
-      font-weight: 700;
-      font-size: 1.5rem;
-    }
-
-    .theme-toggle {
-      background: none;
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 0.5rem 1rem;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      color: var(--text-color);
-    }
-
-    .theme-toggle:hover {
-      background-color: var(--background-color);
-    }
-
-    .form-section,
-    .results-section {
-      background-color: var(--card-background);
-      border-radius: 12px;
-      box-shadow: var(--shadow);
-      padding: 2rem;
-      height: calc(100vh - 250px);
-      min-height: 500px;
-      display: flex;
-      flex-direction: column;
-      transition: all 0.3s ease;
-    }
-
-    .form-section:hover,
-    .results-section:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 12px -1px rgb(0 0 0 / 0.15);
-    }
-
-    .form-section h3,
-    .results-section h3 {
-      color: var(--text-color);
-      font-weight: 600;
-      margin-bottom: 1.5rem;
-      font-size: 1.25rem;
-    }
-
-    textarea#email_content {
-      flex-grow: 1;
-      resize: none;
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 1rem;
-      font-size: 0.95rem;
-      line-height: 1.5;
-      background-color: var(--background-color);
-      color: var(--text-color);
-      transition: all 0.3s ease;
-    }
-
-    textarea#email_content:focus {
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-      outline: none;
-    }
-
-    select#parser_option,
-    select#template_selector {
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      height: 48px;
-      font-size: 0.95rem;
-      background-color: var(--background-color);
-      color: var(--text-color);
-    }
-
-    .template-dropdown {
-      margin-bottom: 1rem;
-    }
-
-    .btn-primary {
-      background-color: var(--primary-color);
-      border-color: var(--primary-color);
-      padding: 0.75rem 1.5rem;
-      border-radius: 8px;
-      font-weight: 500;
-      transition: all 0.2s ease;
-    }
-
-    .btn-primary:hover {
-      background-color: var(--primary-hover);
-      border-color: var(--primary-hover);
-      transform: translateY(-1px);
-    }
-
-    .parsed-data {
-      flex-grow: 1;
-      background-color: var(--background-color);
-      border-radius: 8px;
-      padding: 1.5rem;
-      overflow-y: auto;
-      transition: all 0.3s ease;
-    }
-
-    .parsed-data::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    .parsed-data::-webkit-scrollbar-track {
-      background: var(--background-color);
-    }
-
-    .parsed-data::-webkit-scrollbar-thumb {
-      background: var(--primary-color);
-      border-radius: 4px;
-    }
-
-    .parsed-data table {
-      width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .parsed-data table th {
-      background-color: var(--secondary-color);
-      color: white;
-      padding: 1rem;
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-
-    .parsed-data table td {
-      background-color: var(--card-background);
-      padding: 1rem;
-      font-size: 0.95rem;
-      border-top: 1px solid var(--border-color);
-      color: var(--text-color);
-    }
-
-    .copy-button {
-      position: absolute;
-      top: 1rem;
-      right: 1rem;
-      padding: 0.5rem;
-      background: var(--card-background);
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .copy-button:hover {
-      background: var(--background-color);
-    }
-
-    .footer {
-      background-color: var(--card-background);
-      color: var(--text-color);
-      padding: 1.5rem 0;
-      position: fixed;
-      bottom: 0;
-      width: 100%;
-      box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    .loading-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(5px);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      z-index: 9999;
-      flex-direction: column;
-      color: white;
-    }
-
-    .loading-animation {
-      width: 300px;
-      height: 300px;
-      margin-bottom: 2rem;
-    }
-
-    .loading-message {
-      font-size: 1.5rem;
-      text-align: center;
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 0 2rem;
-      opacity: 0;
-      transform: translateY(20px);
-      transition: all 0.3s ease;
-      font-weight: 500;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    }
-
-    .loading-message.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    .loading-progress {
-      width: 200px;
-      height: 4px;
-      background-color: rgba(255, 255, 255, 0.1);
-      border-radius: 2px;
-      margin-top: 2rem;
-      overflow: hidden;
-    }
-
-    .loading-progress-bar {
-      height: 100%;
-      background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
-      width: 0%;
-      transition: width 0.3s ease;
-    }
-
-    .success-animation {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 1000;
-      display: none;
-      width: 100px;
-      height: 100px;
-    }
-
-    [data-theme="dark"] {
-      --background-color: #1a1a1a;
-      --card-background: #2d2d2d;
-      --text-color: #e5e5e5;
-      --border-color: #404040;
-    }
-
-    @media (max-width: 992px) {
-      .form-section,
-      .results-section {
-        height: auto;
-        min-height: 400px;
-        margin-bottom: 2rem;
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Parser Demo</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- PrismJS CSS for syntax highlighting -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.min.css"
+      rel="stylesheet"
+    />
+    <!-- Lottie Animations -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"
+      defer
+    ></script>
+    <!-- Custom Styles -->
+    <style>
+      :root {
+        --primary-color: #4f46e5;
+        --primary-hover: #4338ca;
+        --secondary-color: #6366f1;
+        --background-color: #f5f7ff;
+        --card-background: #ffffff;
+        --text-color: #1f2937;
+        --border-color: #e5e7eb;
+        --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1),
+          0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --font-size-base: 1rem; /* Adjust base font size */
       }
-    }
-  </style>
-</head>
-<body>
-  <div class="content-wrapper">
+
+      [data-theme="dark"] {
+        --background-color: #1a1a1a;
+        --card-background: #2d2d2d;
+        --text-color: #e5e5e5;
+        --border-color: #404040;
+      }
+
+      body {
+        font-family:
+          "Inter",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background-color: var(--background-color);
+        color: var(--text-color);
+        padding-bottom: 80px;
+        min-height: 100vh;
+        transition: all 0.3s ease;
+        font-size: var(--font-size-base); /* Use base font size */
+      }
+
+      .navbar {
+        background-color: var(--card-background);
+        box-shadow: var(--shadow);
+        padding: 1rem 0;
+      }
+
+      .navbar-brand {
+        color: var(--primary-color) !important;
+        font-weight: 700;
+        font-size: 1.25rem; /* Reduced font size for better scaling */
+      }
+
+      .theme-toggle {
+        background: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        color: var(--text-color);
+        font-size: 1.25rem; /* Adjusted icon size */
+      }
+
+      .theme-toggle:focus {
+        outline: none;
+      }
+
+      .card {
+        background-color: var(--card-background);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        transition: all 0.3s ease;
+      }
+
+      .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 12px -1px rgb(0 0 0 / 0.15);
+      }
+
+      .card-header {
+        background-color: var(--primary-color);
+        color: white;
+        font-weight: 600;
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+        font-size: 1.1rem; /* Adjusted font size */
+      }
+
+      textarea#email_content {
+        resize: vertical;
+        min-height: 150px; /* Reduced min-height */
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.75rem; /* Adjusted padding */
+        font-size: 0.9rem; /* Adjusted font size */
+        line-height: 1.5;
+        background-color: var(--background-color);
+        color: var(--text-color);
+        transition: all 0.3s ease;
+      }
+
+      textarea#email_content:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        outline: none;
+      }
+
+      select#parser_option,
+      select#template_selector {
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        height: 40px; /* Reduced height for better scaling */
+        font-size: 0.9rem; /* Adjusted font size */
+        background-color: var(--background-color);
+        color: var(--text-color);
+      }
+
+      .btn-primary {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+        padding: 0.5rem 1rem; /* Adjusted padding */
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        font-size: 1rem; /* Adjusted font size */
+      }
+
+      .btn-primary:hover {
+        background-color: var(--primary-hover);
+        border-color: var(--primary-hover);
+        transform: translateY(-1px);
+      }
+
+      #parsedOutput {
+        max-height: 400px; /* Reduced max height */
+        overflow-y: auto;
+        position: relative;
+      }
+
+      .copy-button {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        padding: 0.25rem;
+        background: var(--card-background);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        z-index: 10;
+        font-size: 1rem; /* Adjusted icon size */
+      }
+
+      .copy-button:hover {
+        background: var(--background-color);
+      }
+
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(5px);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        flex-direction: column;
+        color: white;
+        padding: 1rem;
+      }
+
+      .loading-animation {
+        width: 200px; /* Reduced size */
+        height: 200px; /* Reduced size */
+        margin-bottom: 1rem;
+      }
+
+      .loading-message {
+        font-size: 1.25rem; /* Reduced font size */
+        text-align: center;
+        max-width: 500px;
+        margin: 0 auto;
+        padding: 0 1rem;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: all 0.3s ease;
+        font-weight: 500;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+
+      .loading-message.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .loading-progress {
+        width: 150px; /* Reduced width */
+        height: 4px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        margin-top: 1rem;
+        overflow: hidden;
+      }
+
+      .loading-progress-bar {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          var(--primary-color),
+          var(--secondary-color)
+        );
+        width: 0%;
+        transition: width 0.3s ease;
+      }
+
+      .success-animation {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
+        display: none;
+        width: 100px;
+        height: 100px;
+      }
+
+      .footer {
+        background-color: var(--card-background);
+        box-shadow: var(--shadow);
+      }
+
+      @media (max-width: 992px) {
+        .card {
+          margin-bottom: 1.5rem;
+        }
+      }
+
+      @media (max-width: 576px) {
+        .navbar-brand {
+          font-size: 1rem;
+        }
+
+        .theme-toggle {
+          font-size: 1.2rem;
+        }
+
+        .card-header h5 {
+          font-size: 1rem;
+        }
+
+        textarea#email_content {
+          min-height: 120px;
+          font-size: 0.85rem;
+        }
+
+        .btn-primary {
+          font-size: 0.95rem;
+          padding: 0.5rem 1rem;
+        }
+
+        .loading-message {
+          font-size: 1rem;
+        }
+      }
+
+      /* Ensure pre/code blocks are responsive */
+      pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg">
-      <div class="container d-flex justify-content-between align-items-center">
-        <a class="navbar-brand" href="#">Email Parser Demo</a>
-        <button class="theme-toggle" onclick="toggleTheme()">
-          <span class="theme-icon">🌓</span>
-        </button>
-      </div>
+        <div class="container d-flex justify-content-between align-items-center">
+            <a class="navbar-brand" href="#">Email Parser Demo</a>
+            <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle Theme">
+                <span id="theme-icon">🌓</span>
+            </button>
+        </div>
     </nav>
 
+    <!-- Main Content -->
     <div class="container mt-4 mb-5">
-      <div class="row main-row">
-        <div class="col-lg-6 mb-4">
-          <div class="form-section">
-            <h3>Enter Email Content</h3>
-            <div class="template-dropdown">
-              <select class="form-select" id="template_selector" onchange="loadTemplate()">
-                <option value="">Select a template...</option>
-                <option value="meeting">Meeting Invitation</option>
-                <option value="invoice">Invoice Email</option>
-                <option value="shipping">Shipping Notification</option>
-              </select>
-            </div>
-            <form method="post" id="email-form">
-              <div class="mb-3 flex-grow-1 d-flex flex-column">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <label for="email_content" class="form-label">Email Content</label>
-                  <small class="text-muted" id="char_count">0 characters</small>
+        <div class="row">
+            <!-- Input Section -->
+            <div class="col-lg-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Input</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="parserForm" method="POST" action="/" novalidate>
+                            <!-- Template Selector -->
+                            <div class="mb-3">
+                                <label for="template_selector" class="form-label">Select Template</label>
+                                <select class="form-select" id="template_selector" onchange="loadTemplate()" aria-label="Select Email Template">
+                                    <option value="">Select a template...</option>
+                                    <option value="meeting">Meeting Invitation</option>
+                                    <option value="invoice">Invoice Email</option>
+                                    <option value="shipping">Shipping Notification</option>
+                                </select>
+                            </div>
+                            <!-- Email Content -->
+                            <div class="mb-3 position-relative">
+                                <label for="email_content" class="form-label">Email Content</label>
+                                <small class="text-muted float-end" id="char_count">0 characters</small>
+                                <textarea class="form-control" id="email_content" name="email_content" rows="10" required aria-required="true" aria-describedby="char_count"></textarea>
+                                <div class="invalid-feedback">
+                                    Please enter the email content to parse.
+                                </div>
+                            </div>
+                            <!-- Parser Option -->
+                            <div class="mb-3">
+                                <label for="parser_option" class="form-label">Parser Option</label>
+                                <select class="form-select" id="parser_option" name="parser_option" required aria-required="true">
+                                    <option value="rule_based">Rule-Based Parser</option>
+                                    <option value="local_llm">Local LLM Parser</option>
+                                    <option value="llm">OpenAI LLM Parser</option>
+                                </select>
+                                <div class="invalid-feedback">
+                                    Please select a parser option.
+                                </div>
+                            </div>
+                            <!-- Submit Button -->
+                            <button type="submit" class="btn btn-primary w-100">Parse Email</button>
+                        </form>
+                    </div>
                 </div>
-                <textarea class="form-control" id="email_content" name="email_content" 
-                  placeholder="Paste your email content here...">{{ request.form.email_content }}</textarea>
-              </div>
-              <div class="mb-3">
-                <label for="parser_option" class="form-label">Select Parser Option</label>
-                <select class="form-select" id="parser_option" name="parser_option">
-                  <option value="rule_based" {% if selected_parser == 'rule_based' %}selected{% endif %}>Rule-Based Parser</option>
-                  <option value="local_llm" {% if selected_parser == 'local_llm' %}selected{% endif %}>Local LLM Parser</option>
-                </select>
-              </div>
-              <button type="submit" class="btn btn-primary w-100" id="parse-button">
-                Parse Email
-                <span class="spinner-border spinner-border-sm d-none" role="status" id="parse-spinner"></span>
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <div class="col-lg-6">
-          <div class="results-section">
-            <h3>Parsed Data</h3>
-            <div class="parsed-data position-relative">
-              <button class="copy-button" onclick="copyResults()" title="Copy results">
-                📋
-              </button>
-              {% if error_message %}
-                <div class="alert alert-danger" role="alert">
-                  {{ error_message }}
-                </div>
-              {% elif parsed_data %}
-                <table class="table">
-                  <tbody>
-                    {% for key, value in parsed_data.items() %}
-                      <tr>
-                        <th>{{ key }}</th>
-                        <td>{{ value }}</td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-                </table>
-              {% else %}
-                <table class="table">
-                  <tbody>
-                    <tr>
-                      <td colspan="2" class="text-muted text-center">
-                        Parsed data will appear here after submitting the email content.
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              {% endif %}
             </div>
-          </div>
+            <!-- Parsed Data Section -->
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Parsed Data</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="parsedOutput" class="position-relative">
+                            <button class="copy-button" onclick="copyResults()" title="Copy results" aria-label="Copy Parsed Results" type="button">
+                                📋
+                            </button>
+                            <pre><code class="language-json" id="jsonOutput"></code></pre>
+                        </div>
+                        <!-- Error Message -->
+                        <div id="errorMessage" class="alert alert-danger mt-3 d-none" role="alert">
+                            <!-- Error content will be injected here -->
+                        </div>
+                        <!-- Success Message -->
+                        <div id="successMessage" class="alert alert-success mt-3 d-none" role="alert">
+                            Parsed data copied to clipboard!
+                        </div>
+                        <!-- Download CSV Button -->
+                        <button id="downloadCsvBtn" class="btn btn-secondary mt-3 d-none" onclick="downloadCSV()">Download CSV</button>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
-  </div>
 
-  <div class="loading-overlay">
-    <div id="lottie-container" class="loading-animation"></div>
-    <div class="loading-message" id="loading-message"></div>
-    <div class="loading-progress">
-      <div class="loading-progress-bar" id="progress-bar"></div>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" role="alert" aria-live="assertive">
+        <div id="lottie-container" class="loading-animation"></div>
+        <div class="loading-message" id="loading-message"></div>
+        <div class="loading-progress">
+            <div class="loading-progress-bar" id="progress-bar"></div>
+        </div>
     </div>
-  </div>
 
-  <div class="success-animation" id="success-animation"></div>
+    <!-- Success Animation -->
+    <div class="success-animation" id="success-animation"></div>
 
-  <footer class="footer text-center">
-    <div class="container">
-      <span>© 2024 Email Parser Demo. All rights reserved.</span>
-    </div>
-  </footer>
+    <!-- Footer -->
+    <footer class="footer text-center fixed-bottom py-3">
+        <div class="container">
+            <span>© 2024 Email Parser Demo. All rights reserved.</span>
+        </div>
+    </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    const loadingMessages = [
-      "Hold onto your bits, this might take a hot second... 🔥",
-      "Teaching AI to read emails... it's like training a cat to swim 🐱",
-      "Holy sh*t, this LLM is taking its sweet time... 🐌",
-      "Parsing emails faster than your ex replies to texts... which isn't saying much 📱",
-      "Making the hamsters run faster in our quantum computers... 🐹",
-      "If this takes any longer, we might need to sacrifice a keyboard to the tech gods ⌨️",
-      "Currently bribing the AI with virtual cookies 🍪",
-      "Plot twist: The AI is actually your old Nokia trying its best 📱",
-      "Damn, this is taking longer than explaining NFTs to your grandma 👵",
-      "Our AI is having an existential crisis... again 🤖",
-      "Loading... like your patience, probably 😅",
-      "Working harder than a cat trying to bury poop on a marble floor 🐱",
-      "Processing faster than your dating app matches ghost you 👻",
-      "Better grab a coffee, this sh*t's taking its time ☕"
-    ];
+    <!-- Bootstrap JS Bundle (Includes Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" defer></script>
+    <!-- PrismJS for Syntax Highlighting -->
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
+    <!-- Custom Scripts -->
+    <script>
+        // Loading Messages Array
+        const loadingMessages = [
+            "Hold onto your bits, this might take a hot second... 🔥",
+            "Teaching AI to read emails... it's like training a cat to swim 🐱",
+            "Holy sh*t, this LLM is taking its sweet time... 🐌",
+            "Parsing emails faster than your ex replies to texts... which isn't saying much 📱",
+            "Making the hamsters run faster in our quantum computers... 🐹",
+            "If this takes any longer, we might need to sacrifice a keyboard to the tech gods ⌨️",
+            "Currently bribing the AI with virtual cookies 🍪",
+            "Plot twist: The AI is actually your old Nokia trying its best 📱",
+            "Damn, this is taking longer than explaining NFTs to your grandma 👵",
+            "Our AI is having an existential crisis... again 🤖",
+            "Loading... like your patience, probably 😅",
+            "Working harder than a cat trying to bury poop on a marble floor 🐱",
+            "Processing faster than your dating app matches ghost you 👻",
+            "Better grab a coffee, this sh*t's taking its time ☕"
+        ];
 
-    const emailTemplates = {
-      meeting: `Subject: Team Meeting - Project Update
+        // Email Templates
+        const emailTemplates = {
+            meeting: `Subject: Team Meeting - Project Update
 From: manager@company.com
 To: team@company.com
 Date: March 15, 2024
@@ -428,7 +439,7 @@ Please confirm your attendance.
 
 Best regards,
 Manager`,
-      invoice: `Subject: Invoice #INV-2024-001
+            invoice: `Subject: Invoice #INV-2024-001
 From: billing@supplier.com
 To: accounts@company.com
 Date: March 16, 2024
@@ -449,7 +460,7 @@ Thank you for your business!
 
 Regards,
 Billing Team`,
-      shipping: `Subject: Your Order Has Shipped!
+            shipping: `Subject: Your Order Has Shipped!
 From: orders@store.com
 To: customer@email.com
 Date: March 17, 2024
@@ -472,136 +483,265 @@ Thank you for shopping with us!
 
 Best regards,
 Store Team`
-    };
+        };
 
-    let currentTheme = 'light';
-    let currentMessageIndex = 0;
-    let loadingInterval;
-    let progressValue = 0;
+        let currentTheme = 'light';
+        let currentMessageIndex = 0;
+        let loadingInterval;
+        let progressValue = 0;
 
-    const animation = lottie.loadAnimation({
-      container: document.getElementById('lottie-container'),
-      renderer: 'svg',
-      loop: true,
-      autoplay: false,
-      path: 'https://lottie.host/0c1a139c-8469-489f-a94e-d6f8e379b066/8eOki65eVz.json'
-    });
+        // Initialize Lottie Animations
+        const loadingAnimation = lottie.loadAnimation({
+            container: document.getElementById('lottie-container'),
+            renderer: 'svg',
+            loop: true,
+            autoplay: false,
+            path: 'https://lottie.host/0c1a139c-8469-489f-a94e-d6f8e379b066/8eOki65eVz.json' // Update with your loading animation URL
+        });
 
-    function toggleTheme() {
-      currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-      document.body.setAttribute('data-theme', currentTheme);
-      localStorage.setItem('theme', currentTheme);
-    }
+        const successAnimationContainer = document.getElementById('success-animation');
 
-    function loadTemplate() {
-      const selector = document.getElementById('template_selector');
-      const textarea = document.getElementById('email_content');
-      textarea.value = emailTemplates[selector.value] || '';
-      updateCharCount();
-    }
-
-    function updateCharCount() {
-      const textarea = document.getElementById('email_content');
-      const charCount = document.getElementById('char_count');
-      charCount.textContent = `${textarea.value.length} characters`;
-    }
-
-    function showLoadingOverlay() {
-      const overlay = document.querySelector('.loading-overlay');
-      const messageElement = document.getElementById('loading-message');
-      const progressBar = document.getElementById('progress-bar');
-      
-      overlay.style.display = 'flex';
-      animation.play();
-      
-      progressValue = 0;
-      progressBar.style.width = '0%';
-
-      updateLoadingMessage();
-
-      loadingInterval = setInterval(() => {
-        currentMessageIndex = (currentMessageIndex + 1) % loadingMessages.length;
-        updateLoadingMessage();
-        
-        progressValue = Math.min(progressValue + 2, 90);
-        progressBar.style.width = `${progressValue}%`;
-      }, 3000);
-    }
-
-    function hideLoadingOverlay() {
-      const overlay = document.querySelector('.loading-overlay');
-      const progressBar = document.getElementById('progress-bar');
-      
-      progressBar.style.width = '100%';
-      
-      setTimeout(() => {
-        overlay.style.display = 'none';
-        animation.stop();
-        clearInterval(loadingInterval);
-        currentMessageIndex = 0;
-      }, 500);
-    }
-
-    function updateLoadingMessage() {
-      const messageElement = document.getElementById('loading-message');
-      messageElement.classList.remove('visible');
-      
-      setTimeout(() => {
-        messageElement.textContent = loadingMessages[currentMessageIndex];
-        messageElement.classList.add('visible');
-      }, 300);
-    }
-
-    function copyResults() {
-      const resultsTable = document.querySelector('.parsed-data table').innerText;
-      navigator.clipboard.writeText(resultsTable).then(() => {
-        showSuccessAnimation();
-      });
-    }
-
-    function showSuccessAnimation() {
-      const successAnim = lottie.loadAnimation({
-        container: document.getElementById('success-animation'),
-        renderer: 'svg',
-        loop: false,
-        autoplay: true,
-        path: 'https://lottie.host/7886e551-bc0f-488b-a6f6-eb55f8d91775/1MHk5o2Ph3.json'
-      });
-
-      const container = document.getElementById('success-animation');
-      container.style.display = 'block';
-
-      successAnim.addEventListener('complete', () => {
-        container.style.display = 'none';
-        successAnim.destroy();
-      });
-    }
-
-    // Initialize everything when the DOM is loaded
-    document.addEventListener('DOMContentLoaded', () => {
-      // Set theme from localStorage
-      const savedTheme = localStorage.getItem('theme') || 'light';
-      document.body.setAttribute('data-theme', savedTheme);
-      currentTheme = savedTheme;
-
-      // Set up character counter
-      const textarea = document.getElementById('email_content');
-      textarea.addEventListener('input', updateCharCount);
-
-      // Set up form submission
-      document.getElementById('email-form').addEventListener('submit', function(e) {
-        const parserOption = document.getElementById('parser_option').value;
-        
-        if (parserOption === 'local_llm') {
-          showLoadingOverlay();
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('theme', currentTheme);
+            updateThemeIcon();
         }
-      });
-    });
-  </script>
+
+        function updateThemeIcon() {
+            const themeIcon = document.getElementById('theme-icon');
+            themeIcon.textContent = currentTheme === 'light' ? '🌙' : '☀️';
+        }
+
+        function loadTemplate() {
+            const selector = document.getElementById('template_selector');
+            const textarea = document.getElementById('email_content');
+            textarea.value = emailTemplates[selector.value] || '';
+            updateCharCount();
+        }
+
+        function updateCharCount() {
+            const textarea = document.getElementById('email_content');
+            const charCount = document.getElementById('char_count');
+            charCount.textContent = `${textarea.value.length} characters`;
+        }
+
+        function showLoadingOverlay() {
+            const overlay = document.querySelector('.loading-overlay');
+            const messageElement = document.getElementById('loading-message');
+            const progressBar = document.getElementById('progress-bar');
+            
+            overlay.style.display = 'flex';
+            loadingAnimation.play();
+            
+            progressValue = 0;
+            progressBar.style.width = '0%';
+
+            updateLoadingMessage();
+
+            loadingInterval = setInterval(() => {
+                currentMessageIndex = (currentMessageIndex + 1) % loadingMessages.length;
+                updateLoadingMessage();
+                
+                progressValue = Math.min(progressValue + 2, 90);
+                progressBar.style.width = `${progressValue}%`;
+            }, 3000);
+        }
+
+        function hideLoadingOverlay() {
+            const overlay = document.querySelector('.loading-overlay');
+            const progressBar = document.getElementById('progress-bar');
+            
+            progressBar.style.width = '100%';
+            
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                loadingAnimation.stop();
+                clearInterval(loadingInterval);
+                currentMessageIndex = 0;
+            }, 500);
+        }
+
+        function updateLoadingMessage() {
+            const messageElement = document.getElementById('loading-message');
+            messageElement.classList.remove('visible');
+            
+            setTimeout(() => {
+                messageElement.textContent = loadingMessages[currentMessageIndex];
+                messageElement.classList.add('visible');
+            }, 300);
+        }
+
+        function copyResults() {
+            const resultsCode = document.getElementById('jsonOutput');
+            navigator.clipboard.writeText(resultsCode.textContent).then(() => {
+                showSuccessAnimation();
+            }).catch(() => {
+                showErrorMessage("Failed to copy to clipboard.");
+            });
+        }
+
+        function showSuccessAnimation() {
+            const successAnim = lottie.loadAnimation({
+                container: successAnimationContainer,
+                renderer: 'svg',
+                loop: false,
+                autoplay: true,
+                path: 'https://lottie.host/7886e551-bc0f-488b-a6f6-eb55f8d91775/1MHk5o2Ph3.json' // Update with your success animation URL
+            });
+
+            successAnimationContainer.style.display = 'block';
+
+            successAnim.addEventListener('complete', () => {
+                successAnimationContainer.style.display = 'none';
+                successAnim.destroy();
+            });
+        }
+
+        function showErrorMessage(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('d-none');
+            setTimeout(() => {
+                errorDiv.classList.add('d-none');
+            }, 5000);
+        }
+
+        function showSuccessMessage(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.classList.remove('d-none');
+            setTimeout(() => {
+                successDiv.classList.add('d-none');
+            }, 5000);
+        }
+
+        function downloadCSV() {
+            const csvData = window.parsedCsvData; // Store parsed CSV data globally after parsing
+            const csvFilename = window.parsedCsvFilename || 'parsed_data.csv';
+            if (!csvData) {
+                showErrorMessage("No CSV data available to download.");
+                return;
+            }
+
+            // Create a Blob from the base64 encoded CSV
+            const csvBytes = atob(csvData);
+            const byteNumbers = new Array(csvBytes.length);
+            for (let i = 0; i < csvBytes.length; i++) {
+                byteNumbers[i] = csvBytes.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+
+            // Create a temporary link to trigger download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = csvFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize Theme
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            currentTheme = savedTheme;
+            updateThemeIcon();
+            console.log(`Theme initialized to: ${currentTheme}`);
+
+            // Initialize Character Count
+            const textarea = document.getElementById('email_content');
+            textarea.addEventListener('input', updateCharCount);
+            console.log("Character count listener attached.");
+
+            // Form Submission
+            const parserForm = document.getElementById('parserForm');
+            if (parserForm) {
+                parserForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    console.log("Form submission intercepted.");
+                    const form = this;
+                    const formData = new FormData(form);
+                    const parserOption = document.getElementById('parser_option').value;
+                    const emailContent = document.getElementById('email_content').value.trim();
+
+                    // Client-side Validation
+                    if (!emailContent) {
+                        textarea.classList.add('is-invalid');
+                        console.log("Email content is empty.");
+                        return;
+                    } else {
+                        textarea.classList.remove('is-invalid');
+                    }
+
+                    // Show Loading Overlay if using LLM Parser
+                    if (parserOption === 'local_llm' || parserOption === 'llm') {
+                        console.log("Showing loading overlay.");
+                        showLoadingOverlay();
+                    }
+
+                    fetch('/', {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json' // Inform backend to return JSON
+                        },
+                        body: formData
+                    })
+                    .then(async response => {
+                        hideLoadingOverlay();
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            console.log("Error response:", errorText);
+                            throw new Error(errorText || 'An error occurred while parsing.');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log("Parsed data received:", data);
+                        if (data.error_message) {
+                            showErrorMessage(data.error_message);
+                            document.getElementById('jsonOutput').textContent = '';
+                            document.getElementById('downloadCsvBtn').classList.add('d-none'); // Hide download button
+                        } else {
+                            const outputDiv = document.getElementById('jsonOutput');
+                            const prettyJson = JSON.stringify(data.parsed_data, null, 2);
+                            outputDiv.textContent = prettyJson;
+                            Prism.highlightElement(outputDiv);
+
+                            // Store CSV data globally for download
+                            window.parsedCsvData = data.csv_data;
+                            window.parsedCsvFilename = data.csv_filename;
+
+                            // Show Download CSV button
+                            document.getElementById('downloadCsvBtn').classList.remove('d-none');
+
+                            showSuccessMessage("Email parsed successfully!");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error during parsing:", error);
+                        hideLoadingOverlay();
+                        showErrorMessage(error.message);
+                        document.getElementById('downloadCsvBtn').classList.add('d-none'); // Hide download button
+                    });
+                });
+                console.log("Form submission listener attached.");
+            } else {
+                console.error("Form with id 'parserForm' not found.");
+            }
+
+            // Handle Template Selector Change
+            const templateSelector = document.getElementById('template_selector');
+            if (templateSelector) {
+                templateSelector.addEventListener('change', loadTemplate);
+                console.log("Template selector change listener attached.");
+            } else {
+                console.error("Template selector with id 'template_selector' not found.");
+            }
+        });
+    </script>
 </body>
 </html>
-
-
-
-
-

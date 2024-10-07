@@ -1,17 +1,15 @@
 # src/parsers/rule_based_parser.py
 
+import os
 import logging
 import re
 import spacy
-from src.parsers.base_parser import BaseParser
-from src.parsers.local_llm_parser import (
-    validate_json,
-)  # Assuming validate_json is accessible
-import jsonschema
-from jsonschema import validate
-from datetime import datetime
 import yaml
-import os
+from datetime import datetime
+from src.parsers.base_parser import BaseParser
+from src.utils.validation import validate_json
+from spacy.cli import download as spacy_download
+from spacy.util import is_package
 
 
 class RuleBasedParser(BaseParser):
@@ -19,9 +17,10 @@ class RuleBasedParser(BaseParser):
 
     def __init__(self, config_path: str = None):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.ensure_spacy_model()
         try:
             self.nlp = spacy.load("en_core_web_sm")
-            self.logger.info("spaCy model loaded successfully.")
+            self.logger.info("spaCy model 'en_core_web_sm' loaded successfully.")
         except Exception as e:
             self.logger.error(f"Failed to load spaCy model: {e}")
             raise
@@ -100,6 +99,21 @@ class RuleBasedParser(BaseParser):
                 ],
             },
         )
+
+    def ensure_spacy_model(self):
+        """
+        Ensures that the spaCy model 'en_core_web_sm' is installed.
+        Downloads the model if it's not present.
+        """
+        model_name = "en_core_web_sm"
+        if not is_package(model_name):
+            self.logger.warning(f"spaCy model '{model_name}' not found. Downloading...")
+            try:
+                spacy_download(model_name)
+                self.logger.info(f"Successfully downloaded spaCy model '{model_name}'.")
+            except Exception as e:
+                self.logger.error(f"Failed to download spaCy model '{model_name}': {e}")
+                raise
 
     def default_config(self):
         """Provides the default configuration for the parser."""
@@ -242,34 +256,27 @@ class RuleBasedParser(BaseParser):
                 self.logger.warning(
                     f"No extraction method found for section: {section}"
                 )
-                if section == "Additional details/Special Instructions":
-                    extracted_data.update(self.default_section_data(section))
+                extracted_data.update(self.default_section_data(section))
 
-                # Ensure 'Additional details/Special Instructions' is always present
-                if "Additional details/Special Instructions" not in extracted_data:
-                    extracted_data.update(
-                        self.default_section_data(
-                            "Additional details/Special Instructions"
-                        )
-                    )
+        # Ensure 'Additional details/Special Instructions' is always present
+        if "Additional details/Special Instructions" not in extracted_data:
+            extracted_data.update(
+                self.default_section_data("Additional details/Special Instructions")
+            )
 
-                    # Extract entities using NLP
-                    entities = self.extract_entities(email_content)
-                    extracted_data["Entities"] = entities
+        # Extract entities using NLP
+        entities = self.extract_entities(email_content)
+        extracted_data["Entities"] = entities
 
-                    # Validate the extracted data against the JSON schema
-                    is_valid, error_message = validate_json(extracted_data)
-                    if not is_valid:
-                        self.logger.error(
-                            f"JSON Schema Validation Error: {error_message}"
-                        )
-                        raise ValueError(
-                            f"JSON Schema Validation Error: {error_message}"
-                        )
+        # Validate the extracted data against the JSON schema
+        is_valid, error_message = validate_json(extracted_data)
+        if not is_valid:
+            self.logger.error(f"JSON Schema Validation Error: {error_message}")
+            raise ValueError(f"JSON Schema Validation Error: {error_message}")
 
-                    self.logger.debug(f"Extracted Data: {extracted_data}")
-                    self.logger.info("Successfully parsed email with RuleBasedParser.")
-                    return extracted_data
+        self.logger.debug(f"Extracted Data: {extracted_data}")
+        self.logger.info("Successfully parsed email with RuleBasedParser.")
+        return extracted_data
 
     def snake_case(self, text: str) -> str:
         """Converts text to snake_case by removing non-word characters and replacing spaces with underscores."""
@@ -380,7 +387,7 @@ class RuleBasedParser(BaseParser):
         elif section == "Additional details/Special Instructions":
             default_data["Additional details/Special Instructions"] = "N/A"
         elif section == "Attachment(s)":
-            default_data["Attachment(s)"] = "N/A"
+            default_data["Attachment(s)"] = []
         return default_data
 
     def extract_requesting_party(self, text: str):
@@ -704,23 +711,23 @@ class RuleBasedParser(BaseParser):
                         or self.is_valid_url(att.strip())
                     )
                 ]
-                data["Attachment(s)"] = attachment_list if attachment_list else "N/A"
+                data["Attachment(s)"] = attachment_list if attachment_list else []
                 self.logger.debug(f"Found Attachments: {attachment_list}")
             else:
-                data["Attachment(s)"] = "N/A"
+                data["Attachment(s)"] = []
                 self.logger.debug("Attachments marked as 'N/A' or empty.")
         else:
-            data["Attachment(s)"] = "N/A"
-            self.logger.debug("Attachment(s) not found, set to 'N/A'")
+            data["Attachment(s)"] = []
+            self.logger.debug("Attachment(s) not found, set to empty list")
         return data
 
     def is_valid_attachment(self, attachment: str) -> bool:
-        # Simple validation for file extensions
+        """Simple validation for file extensions."""
         valid_extensions = [".pdf", ".docx", ".xlsx", ".zip", ".png", ".jpg"]
         return any(attachment.lower().endswith(ext) for ext in valid_extensions)
 
     def is_valid_url(self, attachment: str) -> bool:
-        # Simple URL validation
+        """Simple URL validation."""
         url_pattern = re.compile(
             r"^(?:http|ftp)s?://"  # http:// or https://
             r"(?:\S+(?::\S*)?@)?"  # user:pass@
