@@ -24,16 +24,16 @@ QUICKBASE_SCHEMA = {
     },
     "Assignment Information": {
         "Date of Loss/Occurrence": "field_15",
-        "Cause of Loss": "field_16",
+        "Cause of loss": "field_16",
         "Facts of Loss": "field_17",
         "Loss Description": "field_18",
         "Residence Occupied During Loss": "field_19",
         "Was Someone Home at Time of Damage": "field_20",
         "Repair or Mitigation Progress": "field_21",
         "Type": "field_22",
-        "Inspection Type": "field_23",
+        "Inspection type": "field_23",
         "Assignment Type": "field_24",
-        "Additional Details/Special Instructions": "field_25",
-        "Attachments": "field_26"
+        "Additional details/Special Instructions": "field_25",
+        "Attachment(s)": "field_26"
     }
 }

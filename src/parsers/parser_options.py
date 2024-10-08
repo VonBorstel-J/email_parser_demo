@@ -13,4 +13,5 @@ class ParserOption(Enum):
     """
     RULE_BASED = 'rule_based'
     LOCAL_LLM = 'local_llm'
-    LLM = 'llm'  
+    LLM = 'llm'
+    HYBRID_PARSER = 'hybrid_parser'

@@ -113,7 +113,6 @@ assignment_schema = {
     ],
 }
 
-
 def validate_json(parsed_data):
     try:
         jsonschema.validate(instance=parsed_data, schema=assignment_schema)

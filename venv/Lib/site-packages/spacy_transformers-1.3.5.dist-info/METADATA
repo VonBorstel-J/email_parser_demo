@@ -1,0 +1,150 @@
+Metadata-Version: 2.1
+Name: spacy-transformers
+Version: 1.3.5
+Summary: spaCy pipelines for pre-trained BERT and other transformers
+Home-page: https://spacy.io
+Author: Explosion
+Author-email: contact@explosion.ai
+License: MIT
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: spacy <4.1.0,>=3.5.0
+Requires-Dist: transformers <4.37.0,>=3.4.0
+Requires-Dist: torch >=1.8.0
+Requires-Dist: srsly <3.0.0,>=2.4.0
+Requires-Dist: spacy-alignments <1.0.0,>=0.7.2
+Requires-Dist: dataclasses <1.0,>=0.6 ; python_version < "3.7"
+Requires-Dist: numpy >=1.15.0 ; python_version < "3.9"
+Requires-Dist: numpy >=1.19.0 ; python_version >= "3.9"
+Provides-Extra: cuda
+Requires-Dist: cupy >=5.0.0b4 ; extra == 'cuda'
+Provides-Extra: cuda100
+Requires-Dist: cupy-cuda100 >=5.0.0b4 ; extra == 'cuda100'
+Provides-Extra: cuda101
+Requires-Dist: cupy-cuda101 >=5.0.0b4 ; extra == 'cuda101'
+Provides-Extra: cuda102
+Requires-Dist: cupy-cuda102 >=5.0.0b4 ; extra == 'cuda102'
+Provides-Extra: cuda110
+Requires-Dist: cupy-cuda110 >=5.0.0b4 ; extra == 'cuda110'
+Provides-Extra: cuda111
+Requires-Dist: cupy-cuda111 >=5.0.0b4 ; extra == 'cuda111'
+Provides-Extra: cuda112
+Requires-Dist: cupy-cuda112 >=5.0.0b4 ; extra == 'cuda112'
+Provides-Extra: cuda80
+Requires-Dist: cupy-cuda80 >=5.0.0b4 ; extra == 'cuda80'
+Provides-Extra: cuda90
+Requires-Dist: cupy-cuda90 >=5.0.0b4 ; extra == 'cuda90'
+Provides-Extra: cuda91
+Requires-Dist: cupy-cuda91 >=5.0.0b4 ; extra == 'cuda91'
+Provides-Extra: cuda92
+Requires-Dist: cupy-cuda92 >=5.0.0b4 ; extra == 'cuda92'
+
+<a href="https://explosion.ai"><img src="https://explosion.ai/assets/img/logo.svg" width="125" height="125" align="right" /></a>
+
+# spacy-transformers: Use pretrained transformers like BERT, XLNet and GPT-2 in spaCy
+
+This package provides [spaCy](https://github.com/explosion/spaCy) components and
+architectures to use transformer models via
+[Hugging Face's `transformers`](https://github.com/huggingface/transformers) in
+spaCy. The result is convenient access to state-of-the-art transformer
+architectures, such as BERT, GPT-2, XLNet, etc.
+
+> **This release requires [spaCy v3](https://spacy.io/usage/v3).** For the
+> previous version of this library, see the
+> [`v0.6.x` branch](https://github.com/explosion/spacy-transformers/tree/v0.6.x).
+
+[![tests](https://github.com/explosion/spacy-transformers/actions/workflows/tests.yml/badge.svg)](https://github.com/explosion/spacy-transformers/actions/workflows/tests.yml)
+[![PyPi](https://img.shields.io/pypi/v/spacy-transformers.svg?style=flat-square&logo=pypi&logoColor=white)](https://pypi.python.org/pypi/spacy-transformers)
+[![GitHub](https://img.shields.io/github/release/explosion/spacy-transformers/all.svg?style=flat-square&logo=github)](https://github.com/explosion/spacy-transformers/releases)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/ambv/black)
+
+## Features
+
+- Use pretrained transformer models like **BERT**, **RoBERTa** and **XLNet** to
+  power your spaCy pipeline.
+- Easy **multi-task learning**: backprop to one transformer model from several
+  pipeline components.
+- Train using spaCy v3's powerful and extensible config system.
+- Automatic alignment of transformer output to spaCy's tokenization.
+- Easily customize what transformer data is saved in the `Doc` object.
+- Easily customize how long documents are processed.
+- Out-of-the-box serialization and model packaging.
+
+## 🚀 Installation
+
+Installing the package from pip will automatically install all dependencies,
+including PyTorch and spaCy. Make sure you install this package **before** you
+install the models. Also note that this package requires **Python 3.6+**,
+**PyTorch v1.5+** and **spaCy v3.0+**.
+
+```bash
+pip install 'spacy[transformers]'
+```
+
+For GPU installation, find your CUDA version using `nvcc --version` and add the
+[version in brackets](https://spacy.io/usage/#gpu), e.g.
+`spacy[transformers,cuda92]` for CUDA9.2 or `spacy[transformers,cuda100]` for
+CUDA10.0.
+
+If you are having trouble installing PyTorch, follow the
+[instructions](https://pytorch.org/get-started/locally/) on the official website
+for your specific operating system and requirements.
+
+## 📖 Documentation
+
+> ⚠️ **Important note:** This package has been extensively refactored to take
+> advantage of [spaCy v3.0](https://spacy.io). Previous versions that were built
+> for [spaCy v2.x](https://v2.spacy.io) worked considerably differently. Please
+> see previous tagged versions of this README for documentation on prior
+> versions.
+
+- 📘
+  [Embeddings, Transformers and Transfer Learning](https://spacy.io/usage/embeddings-transformers):
+  How to use transformers in spaCy
+- 📘 [Training Pipelines and Models](https://spacy.io/usage/training): Train and
+  update components on your own data and integrate custom models
+- 📘
+  [Layers and Model Architectures](https://spacy.io/usage/layers-architectures):
+  Power spaCy components with custom neural networks
+- 📗 [`Transformer`](https://spacy.io/api/transformer): Pipeline component API
+  reference
+- 📗
+  [Transformer architectures](https://spacy.io/api/architectures#transformers):
+  Architectures and registered functions
+
+## Applying pretrained text and token classification models
+
+Note that the `transformer` component from `spacy-transformers` does not support
+task-specific heads like token or text classification. A task-specific
+transformer model can be used as a source of features to train spaCy components
+like `ner` or `textcat`, but the `transformer` component does not provide access
+to task-specific heads for training or inference.
+
+Alternatively, if you only want use to the **predictions** from an existing
+Hugging Face text or token classification model, you can use the wrappers from
+[`spacy-huggingface-pipelines`](https://github.com/explosion/spacy-huggingface-pipelines)
+to incorporate task-specific transformer models into your spaCy pipelines.
+
+## Bug reports and other issues
+
+Please use [spaCy's issue tracker](https://github.com/explosion/spaCy/issues) to
+report a bug, or open a new thread on the
+[discussion board](https://github.com/explosion/spaCy/discussions) for any other
+issue.

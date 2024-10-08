@@ -1,0 +1,9 @@
+# Ignore all files in the models directory
+models/
+torch/
+
+# Ignore specific types of large files
+*.bin
+*.h5
+*.msgpack
+*.safetensors

@@ -1,0 +1,71 @@
+Metadata-Version: 2.1
+Name: spacy-alignments
+Version: 0.9.1
+Summary: A spaCy package for the Rust tokenizations library
+Home-page: https://github.com/explosion/spacy-alignments
+Author: Explosion
+Author-email: contact@explosion.ai
+License: MIT
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Programming Language :: Rust
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
+<a href="https://explosion.ai"><img src="https://explosion.ai/assets/img/logo.svg" width="125" height="125" align="right" /></a>
+
+# spacy-alignments: Align tokenizations for spaCy + transformers
+
+A spaCy package for Yohei Tamura's Rust
+[tokenizations](https://github.com/tamuhey/tokenizations/) library with Python
+bindings.
+
+## Installation
+
+```
+pip install -U pip setuptools wheel
+pip install spacy-alignments
+```
+
+If no binary wheel is available for your platform, you will need to [install
+Rust](https://www.rust-lang.org/tools/install) in order to build
+`spacy-alignments` from source.
+
+## spacy-alignments vs. pytokenizations
+
+The `spacy_alignments` module is a drop-in replacement for `tokenizations`:
+
+```python
+import spacy_alignments as tokenizations
+a2b, b2a = tokenizations.get_alignments(["å", "BC"], ["abc"])
+assert a2b == [[0], [0]]
+assert b2a == [[0, 1]]
+```
+
+The only difference between this package and the original
+[`pytokenizations`](https://pypi.org/project/pytokenizations/) is that it
+switches the build system to `setuptools-rust` to make it easier for us at
+Explosion to build source and binary packages for a wider range of platforms.
+
+## Bug reports and other issues
+
+Please use [spaCy's issue tracker](https://github.com/explosion/spaCy/issues) to report a bug, or open a new thread on the
+[discussion board](https://github.com/explosion/spaCy/discussions)
+for any other issue.

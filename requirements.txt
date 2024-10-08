@@ -13,6 +13,7 @@ spacy
 pandas
 mail-parser
 validators
+pyyaml  # For YAML configuration loading
 
 # JSON and Schema Validation
 jsonschema
@@ -20,10 +21,8 @@ json-log-formatter
 
 # HTTP Requests
 requests
-aiohttp
 
 # Logging and Utilities
-loguru
 tenacity
 filelock
 
@@ -43,16 +42,17 @@ psycopg2-binary
 # Scheduling
 APScheduler
 
-# Asynchronous Server
-fastapi
-uvicorn[standard]
-
 # Natural Language Processing
 nltk
 torch
 transformers
 langchain
 openai
+spacy-transformers  # For improved spaCy integration with transformers
+
+# Fuzzy Matching
+fuzzywuzzy
+python-Levenshtein  # Optional, but improves fuzzywuzzy performance
 
 # Development and Testing
 pytest
@@ -69,3 +69,8 @@ tqdm
 
 # Numerical Computing
 numpy
+
+# Note:
+# spaCy models like 'en-core-web-sm' need to be downloaded separately.
+# After installing dependencies, run the following command to download the model:
+# python -m spacy download en_core_web_sm

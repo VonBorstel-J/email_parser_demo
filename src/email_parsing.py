@@ -1,32 +1,49 @@
 # src/email_parsing.py
 
-import logging
-from src.parsers.parser_options import ParserOption
 from src.parsers.parser_registry import ParserRegistry
+from src.parsers.parser_options import ParserOption
+from src.utils.validation import validate_json
 
 class EmailParser:
+    """
+    EmailParser handles the selection and usage of different parsing strategies.
+    """
+
     def __init__(self):
-        self.logger = logging.getLogger(self.__class__.__name__)
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        if not self.logger.handlers:
-            self.logger.addHandler(handler)
-        self.logger.setLevel(logging.DEBUG)  # Set to DEBUG for detailed logs
+        pass  # Initialization logic if needed
 
-    def parse_email(self, email_content: str, parser_option: str):
-        try:
-            parser_option_enum = ParserOption(parser_option)
-        except ValueError:
-            self.logger.error(f"Unknown parser option: {parser_option}")
-            raise ValueError(f"Unknown parser option: {parser_option}")
+    def parse_email(self, email_content: str, parser_option: str) -> dict:
+        """
+        Parse the email content using the specified parser option.
 
-        self.logger.info(f"Parsing email using {parser_option_enum.value} parser.")
-        try:
-            parser = ParserRegistry.get_parser(parser_option_enum)
-            parsed_data = parser.parse(email_content)
-            self.logger.info(f"Successfully parsed email using {parser_option_enum.value} parser.")
-            return parsed_data
-        except Exception as e:
-            self.logger.error(f"Error while parsing email: {e}")
-            raise
+        Args:
+            email_content (str): The raw email content to parse.
+            parser_option (str): The parser option to use ('rule_based', 'local_llm', 'llm').
+
+        Returns:
+            dict: Parsed data as a dictionary.
+        """
+        parser_class = ParserRegistry.get_parser(parser_option)
+        if not parser_class:
+            raise ValueError(f"Invalid parser option selected: '{parser_option}'")
+        
+        parser_instance = parser_class()
+        parsed_data = parser_instance.parse(email_content)
+
+        # Optionally, you can add CSV conversion here if needed - This would be server side processing instead of client - probs not gonna be necessary.
+        # For example:
+        # csv_data, csv_filename = self.convert_to_csv(parsed_data)
+        # parsed_data["csv_data"] = csv_data
+        # parsed_data["csv_filename"] = csv_filename
+
+        # Validate the parsed data against a JSON schema
+        is_valid, error_message = validate_json(parsed_data)
+        if not is_valid:
+            raise ValueError(f"Parsed data validation failed: {error_message}")
+
+        return parsed_data
+
+    # Optional: Implement CSV conversion if required
+    # def convert_to_csv(self, parsed_data: dict) -> Tuple[str, str]:
+    #     # Conversion logic here
+    #     pass
